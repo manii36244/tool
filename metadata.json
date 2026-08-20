@@ -1,0 +1,8 @@
+{
+  "name": "NexusOS - Business Management & Growth System",
+  "description": "All-in-one multi-tenant SaaS operating system for SMBs with CRM, Sales & Finance, Marketing, Unified Inbox, Appointments, AI Assistant, Automation Engine, and Analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

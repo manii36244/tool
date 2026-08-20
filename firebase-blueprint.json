@@ -1,0 +1,153 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with workspace role and association",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "name": { "type": "string" },
+        "role": { "type": "string", "enum": ["owner", "admin", "manager", "employee", "viewer"] },
+        "workspaceId": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "email", "name", "role", "workspaceId"]
+    },
+    "Workspace": {
+      "title": "Workspace",
+      "description": "Business tenant account",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "subscriptionPlan": { "type": "string" },
+        "currency": { "type": "string" },
+        "timezone": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "ownerId"]
+    },
+    "Lead": {
+      "title": "Lead",
+      "description": "CRM Lead prospect",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "workspaceId": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "company": { "type": "string" },
+        "status": { "type": "string" },
+        "score": { "type": "number" },
+        "source": { "type": "string" },
+        "value": { "type": "number" },
+        "assignedTo": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "workspaceId", "name", "email"]
+    },
+    "Contact": {
+      "title": "Contact",
+      "description": "CRM Customer Contact",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "workspaceId": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "company": { "type": "string" },
+        "type": { "type": "string" },
+        "lifetimeValue": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "workspaceId", "name", "email"]
+    },
+    "Deal": {
+      "title": "Deal",
+      "description": "Sales pipeline deal",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "workspaceId": { "type": "string" },
+        "title": { "type": "string" },
+        "contactName": { "type": "string" },
+        "value": { "type": "number" },
+        "stage": { "type": "string" },
+        "probability": { "type": "number" },
+        "closeDate": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "workspaceId", "title", "value", "stage"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "Action item or task",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "workspaceId": { "type": "string" },
+        "title": { "type": "string" },
+        "dueDate": { "type": "string" },
+        "priority": { "type": "string" },
+        "status": { "type": "string" },
+        "assignedTo": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "workspaceId", "title", "status"]
+    },
+    "Invoice": {
+      "title": "Invoice",
+      "description": "Customer invoice and billing record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "workspaceId": { "type": "string" },
+        "invoiceNumber": { "type": "string" },
+        "contactName": { "type": "string" },
+        "contactEmail": { "type": "string" },
+        "total": { "type": "number" },
+        "paidAmount": { "type": "number" },
+        "status": { "type": "string" },
+        "dueDate": { "type": "string" },
+        "items": { "type": "array" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "workspaceId", "invoiceNumber", "total", "status"]
+    }
+  },
+  "firestore": {
+    "users": {
+      "schema": "UserProfile",
+      "description": "Collection of user profiles"
+    },
+    "workspaces": {
+      "schema": "Workspace",
+      "description": "Collection of business workspaces"
+    },
+    "leads": {
+      "schema": "Lead",
+      "description": "Collection of CRM leads"
+    },
+    "contacts": {
+      "schema": "Contact",
+      "description": "Collection of CRM customer contacts"
+    },
+    "deals": {
+      "schema": "Deal",
+      "description": "Collection of sales deals"
+    },
+    "tasks": {
+      "schema": "Task",
+      "description": "Collection of operational tasks"
+    },
+    "invoices": {
+      "schema": "Invoice",
+      "description": "Collection of invoices"
+    }
+  }
+}
