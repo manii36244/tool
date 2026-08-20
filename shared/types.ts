@@ -80,7 +80,7 @@ export interface Lead {
   email: string;
   phone?: string;
   status: LeadStatus;
-  source: 'website_form' | 'manual' | 'cold_outreach' | 'referral' | 'event' | 'campaign' | 'whatsapp' | 'other';
+  source: 'website_form' | 'manual' | 'cold_outreach' | 'referral' | 'event' | 'campaign' | 'whatsapp' | 'other' | string;
   campaign_id?: string;
   assigned_to?: string;
   score: number; // 0-100
@@ -90,7 +90,7 @@ export interface Lead {
   custom_fields?: Record<string, string | number | boolean>;
   last_contacted_at?: string;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
 }
 
 export interface Contact {
@@ -371,15 +371,16 @@ export interface AppointmentType {
   description?: string;
   duration_minutes: number;
   price: number;
-  currency: string;
-  location_type: 'video_call' | 'phone' | 'in_person' | 'custom';
+  currency?: string;
+  location_type?: 'video_call' | 'phone' | 'in_person' | 'custom' | string;
   location_details?: string; // e.g. Google Meet URL or Office Address
-  staff_ids: string[];
-  buffer_before_minutes: number;
-  buffer_after_minutes: number;
-  active: boolean;
-  color: string;
-  created_at: string;
+  staff_ids?: string[];
+  buffer_minutes?: number;
+  buffer_before_minutes?: number;
+  buffer_after_minutes?: number;
+  active?: boolean;
+  color?: string;
+  created_at?: string;
 }
 
 export interface Appointment {

@@ -12,12 +12,13 @@ import {
   TrendingUp, 
   Sparkles, 
   Eye, 
-  Layers,
-  BarChart3,
-  DollarSign,
-  Users,
-  Target,
-  RefreshCw
+  Layers, 
+  BarChart3, 
+  DollarSign, 
+  Users, 
+  Target, 
+  RefreshCw,
+  Trash2
 } from 'lucide-react';
 import { useApp } from '../context/AppContext.tsx';
 import { api } from '../lib/api.ts';
@@ -127,6 +128,39 @@ export const MarketingView: React.FC = () => {
       showToast('Coupon Created', newCoupon.code);
       setIsNewCouponOpen(false);
       setNewCoupon({ code: '', discount_type: 'percentage', discount_value: 20, max_uses: 100 });
+      await loadMarketingData();
+    } catch (err: any) {
+      showToast('Error', err.message, 'error');
+    }
+  };
+
+  const handleDeleteCampaign = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to delete campaign "${name}"?`)) return;
+    try {
+      await api.deleteCampaign(id);
+      showToast('Campaign Deleted', `Deleted campaign ${name}`);
+      await loadMarketingData();
+    } catch (err: any) {
+      showToast('Error', err.message, 'error');
+    }
+  };
+
+  const handleDeleteForm = async (id: string, title: string) => {
+    if (!confirm(`Are you sure you want to delete form "${title}"?`)) return;
+    try {
+      await api.deleteForm(id);
+      showToast('Form Deleted', `Deleted lead form ${title}`);
+      await loadMarketingData();
+    } catch (err: any) {
+      showToast('Error', err.message, 'error');
+    }
+  };
+
+  const handleDeleteCoupon = async (id: string, code: string) => {
+    if (!confirm(`Are you sure you want to delete promo coupon "${code}"?`)) return;
+    try {
+      await api.deleteCoupon(id);
+      showToast('Coupon Deleted', `Deleted promo coupon ${code}`);
       await loadMarketingData();
     } catch (err: any) {
       showToast('Error', err.message, 'error');
@@ -319,11 +353,20 @@ export const MarketingView: React.FC = () => {
                         <h3 className="text-sm font-bold text-slate-900">{camp?.name || 'Untitled Campaign'}</h3>
                         <p className="text-[11px] text-slate-500 mt-0.5">Audience: {camp?.target_audience || 'General B2B'}</p>
                       </div>
-                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase shrink-0 ${
-                        camp?.status === 'active' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-700'
-                      }`}>
-                        {camp?.status || 'Active'}
-                      </span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase ${
+                          camp?.status === 'active' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-700'
+                        }`}>
+                          {camp?.status || 'Active'}
+                        </span>
+                        <button
+                          onClick={() => handleDeleteCampaign(camp.id, camp.name)}
+                          title="Delete Campaign"
+                          className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-4 gap-2 pt-2 border-t border-slate-100 text-center">
@@ -378,9 +421,18 @@ export const MarketingView: React.FC = () => {
                         <h3 className="text-sm font-bold text-slate-900">{f.title || 'Inbound Lead Form'}</h3>
                         <p className="text-[11px] text-slate-500 mt-0.5">{f.description || 'Website capture funnel'}</p>
                       </div>
-                      <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200 shrink-0">
-                        {f.submission_count || 0} Submissions
-                      </span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                          {f.submission_count || 0} Submissions
+                        </span>
+                        <button
+                          onClick={() => handleDeleteForm(f.id, f.title)}
+                          title="Delete Lead Form"
+                          className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
 
                     <div className="p-3 bg-slate-900 text-slate-200 rounded-lg text-[11px] font-mono flex items-center justify-between shadow-2xs overflow-hidden">
@@ -527,9 +579,18 @@ export const MarketingView: React.FC = () => {
                     <span className="font-mono text-sm font-bold px-2.5 py-1 bg-blue-50 text-blue-700 rounded-md border border-blue-200">
                       {coup.code}
                     </span>
-                    <span className="text-xs font-bold text-emerald-600">
-                      {coup.discount_type === 'percentage' ? `${coup.discount_value}% OFF` : `$${coup.discount_value} OFF`}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-emerald-600">
+                        {coup.discount_type === 'percentage' ? `${coup.discount_value}% OFF` : `$${coup.discount_value} OFF`}
+                      </span>
+                      <button
+                        onClick={() => handleDeleteCoupon(coup.id, coup.code)}
+                        title="Delete Promo Code"
+                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                   <div className="text-[11px] text-slate-500 flex items-center justify-between pt-2 border-t border-slate-100">
                     <span>Redeemed: {coup.times_used || 0} / {coup.max_uses || 100}</span>

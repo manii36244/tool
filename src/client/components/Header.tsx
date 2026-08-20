@@ -6,9 +6,11 @@ import {
   Sparkles, 
   CheckCheck, 
   Clock,
-  Database,
-  UserCheck,
-  LogIn
+  LogIn,
+  Menu,
+  Home,
+  LogOut,
+  ChevronDown
 } from 'lucide-react';
 import { useApp } from '../context/AppContext.tsx';
 
@@ -23,36 +25,59 @@ export const Header: React.FC = () => {
     setIsAiDrawerOpen,
     setActiveView,
     setIsAuthModalOpen,
+    setIsMobileSidebarOpen,
+    handleSignOut,
     firebaseUser,
     user
   } = useApp();
 
   const [isNotifMenuOpen, setIsNotifMenuOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
   return (
-    <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-8 z-20 shrink-0 select-none">
-      {/* Search Input Button */}
-      <div className="relative w-80 sm:w-96">
+    <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-8 z-20 shrink-0 select-none gap-3">
+      {/* Mobile Hamburger & Search Input */}
+      <div className="flex items-center gap-2.5 flex-1 max-w-lg">
         <button
-          onClick={() => setIsSearchOpen(true)}
-          className="w-full flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 py-2 pl-3.5 pr-3 text-sm text-slate-500 hover:bg-slate-100/70 transition-colors"
+          onClick={() => setIsMobileSidebarOpen(true)}
+          className="md:hidden p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors shrink-0"
+          title="Open Menu"
         >
-          <div className="flex items-center gap-2.5">
-            <Search className="w-4 h-4 text-slate-400" />
-            <span className="text-xs text-slate-400">Search records, deals, or invoices...</span>
-          </div>
-          <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 bg-white border border-slate-200 rounded shadow-xs">
-            ⌘K
-          </kbd>
+          <Menu className="w-5 h-5" />
         </button>
+
+        <div className="relative w-full max-w-xs sm:max-w-sm">
+          <button
+            onClick={() => setIsSearchOpen(true)}
+            className="w-full flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 py-2 pl-3 pr-2.5 text-sm text-slate-500 hover:bg-slate-100/70 transition-colors"
+          >
+            <div className="flex items-center gap-2 truncate">
+              <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span className="text-xs text-slate-400 truncate">Search records or invoices...</span>
+            </div>
+            <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 bg-white border border-slate-200 rounded shadow-2xs shrink-0">
+              ⌘K
+            </kbd>
+          </button>
+        </div>
       </div>
 
       {/* Right Controls */}
-      <div className="flex items-center space-x-3">
+      <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
+        {/* Return to Home / Landing Button */}
+        <button
+          onClick={() => setActiveView('landing')}
+          className="hidden lg:flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 transition-colors"
+          title="Return to Landing Page"
+        >
+          <Home className="w-3.5 h-3.5 text-slate-500" />
+          <span>Home</span>
+        </button>
+
         {/* Live Database / Auth Account Button */}
         <button
           onClick={() => setIsAuthModalOpen(true)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+          className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
             firebaseUser 
               ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
               : 'bg-slate-900 text-white border-slate-800 hover:bg-slate-800 shadow-xs'
@@ -73,7 +98,7 @@ export const Header: React.FC = () => {
 
         <button
           onClick={() => setIsAiDrawerOpen(true)}
-          className="flex items-center gap-1.5 rounded-md px-3 py-2 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors shadow-2xs"
+          className="hidden sm:flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors shadow-2xs"
         >
           <Sparkles className="w-3.5 h-3.5 text-blue-600" />
           <span>AI Copilot</span>
@@ -81,19 +106,19 @@ export const Header: React.FC = () => {
 
         <button
           onClick={() => setIsQuickCreateOpen(true)}
-          className="flex items-center rounded-md bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white shadow-xs hover:bg-blue-700 transition-colors"
+          className="flex items-center rounded-lg bg-blue-600 px-3 py-1.5 sm:px-3.5 sm:py-2 text-xs font-semibold text-white shadow-xs hover:bg-blue-700 transition-colors"
         >
-          <Plus className="w-3.5 h-3.5 mr-1" />
-          <span>Quick Create</span>
+          <Plus className="w-3.5 h-3.5 sm:mr-1" />
+          <span className="hidden sm:inline">Quick Create</span>
         </button>
 
-        <div className="h-6 w-px bg-slate-200"></div>
+        <div className="h-5 w-px bg-slate-200 hidden sm:block"></div>
 
         {/* Notifications Dropdown */}
         <div className="relative">
           <button
             onClick={() => setIsNotifMenuOpen(!isNotifMenuOpen)}
-            className="relative p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-md transition-colors"
+            className="relative p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
           >
             <Bell className="w-4 h-4" />
             {unreadNotificationCount > 0 && (
@@ -160,3 +185,4 @@ export const Header: React.FC = () => {
     </header>
   );
 };
+

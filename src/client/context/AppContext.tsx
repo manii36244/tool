@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { Workspace, User, AppNotification, PlanLimits } from '../../../shared/types.ts';
 import { api } from '../lib/api.ts';
-import { auth, onAuthStateChanged, FirebaseUser, db, doc, getDoc } from '../lib/firebase.ts';
+import { auth, onAuthStateChanged, FirebaseUser, db, doc, getDoc, signOut } from '../lib/firebase.ts';
 
 interface Toast {
   id: string;
@@ -22,9 +22,19 @@ interface AppContextType {
   isLoading: boolean;
   activeView: string;
   setActiveView: (view: string) => void;
+  // Email verification
+  isEmailVerified: boolean;
+  setIsEmailVerified: (verified: boolean) => void;
+  isVerificationModalOpen: boolean;
+  setIsVerificationModalOpen: (open: boolean) => void;
+  // Mobile Navigation
+  isMobileSidebarOpen: boolean;
+  setIsMobileSidebarOpen: (open: boolean) => void;
   // Modals & Panels
   isAuthModalOpen: boolean;
   setIsAuthModalOpen: (open: boolean) => void;
+  authModalInitialPlan: string;
+  setAuthModalInitialPlan: (plan: string) => void;
   isSearchOpen: boolean;
   setIsSearchOpen: (open: boolean) => void;
   isQuickCreateOpen: boolean;
@@ -37,6 +47,7 @@ interface AppContextType {
   refreshData: () => Promise<void>;
   switchWorkspace: (workspaceId: string) => Promise<void>;
   markNotificationsRead: (id?: string) => Promise<void>;
+  handleSignOut: () => Promise<void>;
   showToast: (title: string, message?: string, type?: Toast['type']) => void;
   toasts: Toast[];
   dismissToast: (id: string) => void;
@@ -49,13 +60,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [user, setUser] = useState<User | null>(null);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+  const [isEmailVerified, setIsEmailVerified] = useState<boolean>(false);
+  const [isVerificationModalOpen, setIsVerificationModalOpen] = useState<boolean>(false);
   const [teamMembers, setTeamMembers] = useState<User[]>([]);
   const [plan, setPlan] = useState<PlanLimits | null>(null);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [activeView, setActiveView] = useState<string>('dashboard');
+  const [activeView, setActiveView] = useState<string>('landing');
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
 
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalInitialPlan, setAuthModalInitialPlan] = useState('free');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
   const [isAiDrawerOpen, setIsAiDrawerOpen] = useState(false);
@@ -110,36 +125,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setFirebaseUser(currentUser);
       if (currentUser) {
-        // Sync user state with Firestore
+        // Sync user state with Firestore & Backend Isolated Workspace
         try {
           const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+          let userName = currentUser.displayName || 'Business Operator';
+          let compName = 'My Workspace';
           if (userDoc.exists()) {
             const data = userDoc.data();
+            userName = data.name || currentUser.displayName || userName;
+            compName = data.companyName || compName;
             setUser(prev => prev ? {
               ...prev,
               id: currentUser.uid,
-              name: data.name || currentUser.displayName || prev.name,
+              name: userName,
               email: currentUser.email || prev.email,
               avatar: currentUser.photoURL || prev.avatar,
               role: data.role || 'owner',
             } : null);
-          } else {
-            setUser(prev => prev ? {
-              ...prev,
-              id: currentUser.uid,
-              name: currentUser.displayName || prev.name,
-              email: currentUser.email || prev.email,
-              avatar: currentUser.photoURL || prev.avatar,
-            } : null);
           }
+
+          // Ensure backend database workspace isolation is active for this user
+          await api.initUserWorkspace({
+            userId: currentUser.uid,
+            userEmail: currentUser.email || '',
+            userName: userName,
+            companyName: compName
+          });
+          await refreshData();
+          // If the user signed in while on landing, redirect straight to dashboard
+          setActiveView(prev => prev === 'landing' ? 'dashboard' : prev);
         } catch (e) {
-          console.warn('Firestore user fetch notice:', e);
+          console.warn('Workspace user sync notice:', e);
         }
       }
     });
 
     return () => unsubscribe();
   }, []);
+
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+      setFirebaseUser(null);
+      setActiveView('landing');
+      showToast('Signed Out', 'You have been safely signed out of your workspace.', 'info');
+    } catch (err: any) {
+      showToast('Sign Out Error', err.message || 'Failed to sign out', 'error');
+    }
+  };
 
   const refreshData = async () => {
     try {
@@ -199,6 +232,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isLoading,
         activeView,
         setActiveView,
+        isMobileSidebarOpen,
+        setIsMobileSidebarOpen,
         isAuthModalOpen,
         setIsAuthModalOpen,
         isSearchOpen,
@@ -212,6 +247,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         refreshData,
         switchWorkspace,
         markNotificationsRead,
+        handleSignOut,
         showToast,
         toasts,
         dismissToast,

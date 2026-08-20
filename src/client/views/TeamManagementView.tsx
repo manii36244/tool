@@ -9,6 +9,7 @@ import {
   Sparkles, 
   Lock, 
   ShieldAlert,
+  Trash2,
   MoreVertical
 } from 'lucide-react';
 import { useApp } from '../context/AppContext.tsx';
@@ -16,7 +17,7 @@ import { api } from '../lib/api.ts';
 import { User as UserType, UserRole } from '../../../shared/types.ts';
 
 export const TeamManagementView: React.FC = () => {
-  const { showToast, refreshData } = useApp();
+  const { user, showToast, refreshData } = useApp();
   const [teamMembers, setTeamMembers] = useState<UserType[]>([]);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [inviteForm, setInviteForm] = useState({
@@ -27,7 +28,7 @@ export const TeamManagementView: React.FC = () => {
 
   useEffect(() => {
     loadTeam();
-  }, []);
+  }, [user]);
 
   const loadTeam = async () => {
     try {
@@ -46,8 +47,25 @@ export const TeamManagementView: React.FC = () => {
       setIsInviteOpen(false);
       setInviteForm({ name: '', email: '', role: 'sales_manager' });
       await loadTeam();
+      await refreshData();
     } catch (err: any) {
       showToast('Invite Error', err.message, 'error');
+    }
+  };
+
+  const handleDeleteMember = async (memberId: string, memberName: string) => {
+    if (memberId === user?.id || memberId.includes('owner')) {
+      showToast('Action Prohibited', 'Workspace owner cannot be removed.', 'warning');
+      return;
+    }
+    if (!confirm(`Are you sure you want to remove ${memberName} from the workspace?`)) return;
+    try {
+      await api.deleteTeamMember(memberId);
+      showToast('Member Removed', `Removed ${memberName} from workspace team.`);
+      await loadTeam();
+      await refreshData();
+    } catch (err: any) {
+      showToast('Error', err.message, 'error');
     }
   };
 
@@ -94,41 +112,76 @@ export const TeamManagementView: React.FC = () => {
                 <th className="py-3 px-4">Email</th>
                 <th className="py-3 px-4">Role</th>
                 <th className="py-3 px-4">Access Level</th>
-                <th className="py-3 px-4 text-right">Status</th>
+                <th className="py-3 px-4">Status</th>
+                <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {teamMembers.map(member => (
-                <tr key={member.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="py-3 px-4">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={member.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
-                        alt={member.name}
-                        className="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200"
-                      />
-                      <span className="font-bold text-slate-900">{member.name}</span>
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-slate-600">{member.email}</td>
-                  <td className="py-3 px-4">
-                    <span className="font-semibold capitalize text-slate-800">
-                      {member.role.replace('_', ' ')}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4">
-                    <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                      {member.role === 'owner' || member.role === 'admin' ? 'Full Read/Write/Admin' : 'Role-Scoped'}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-right">
-                    <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-600">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                      Active
-                    </span>
-                  </td>
-                </tr>
-              ))}
+              {teamMembers.map(member => {
+                const isCurrentUser = member.id === user?.id || (user?.email && member.email?.toLowerCase() === user?.email?.toLowerCase());
+                const effectiveAvatar = isCurrentUser && user?.avatar ? user.avatar : member.avatar;
+                const effectiveName = isCurrentUser && user?.name ? user.name : member.name;
+                const initials = (effectiveName || 'User').split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase();
+
+                return (
+                  <tr key={member.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-3">
+                        {effectiveAvatar ? (
+                          <img
+                            src={effectiveAvatar}
+                            alt={effectiveName}
+                            className="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs ring-1 ring-slate-200">
+                            {initials}
+                          </div>
+                        )}
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-slate-900">{effectiveName}</span>
+                            {isCurrentUser && (
+                              <span className="text-[10px] font-semibold px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded">You</span>
+                            )}
+                          </div>
+                          {member.job_title && (
+                            <p className="text-[10px] text-slate-400">{member.job_title}</p>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 text-slate-600">{member.email}</td>
+                    <td className="py-3 px-4">
+                      <span className="font-semibold capitalize text-slate-800">
+                        {member.role?.replace('_', ' ') || 'Team Member'}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                        {member.role === 'owner' || member.role === 'admin' ? 'Full Read/Write/Admin' : 'Role-Scoped'}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-600">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        Active
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      {!isCurrentUser && member.role !== 'owner' && (
+                        <button
+                          onClick={() => handleDeleteMember(member.id, member.name)}
+                          className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
+                          title="Remove Team Member"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -170,11 +223,11 @@ export const TeamManagementView: React.FC = () => {
         </div>
       </div>
 
-      {/* Invite Member Modal */}
+      {/* Invite Modal */}
       {isInviteOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-2xl border border-slate-200">
-            <h3 className="text-sm font-bold text-slate-900 mb-4">Invite Team Member</h3>
+            <h3 className="text-sm font-bold text-slate-900 mb-3">Invite Team Member to Workspace</h3>
             <form onSubmit={handleInvite} className="space-y-3">
               <input
                 required
@@ -191,21 +244,18 @@ export const TeamManagementView: React.FC = () => {
                 onChange={e => setInviteForm({ ...inviteForm, email: e.target.value })}
                 className="w-full text-xs p-2 rounded-md border border-slate-200 focus:outline-blue-600"
               />
-              <div>
-                <label className="text-[11px] font-semibold text-slate-600 block mb-1">Role & Permission Preset</label>
-                <select
-                  value={inviteForm.role}
-                  onChange={e => setInviteForm({ ...inviteForm, role: e.target.value as any })}
-                  className="w-full text-xs p-2 rounded-md border border-slate-200 focus:outline-blue-600"
-                >
-                  <option value="admin">Administrator (Full Access)</option>
-                  <option value="sales_manager">Sales Manager (CRM & Invoicing)</option>
-                  <option value="marketing_manager">Marketing Manager (Campaigns & Forms)</option>
-                  <option value="accountant">Accountant (Invoices & Expenses)</option>
-                  <option value="support_agent">Support Agent (Inbox & Appointments)</option>
-                  <option value="employee">Standard Employee</option>
-                </select>
-              </div>
+              <select
+                value={inviteForm.role}
+                onChange={e => setInviteForm({ ...inviteForm, role: e.target.value as UserRole })}
+                className="w-full text-xs p-2 rounded-md border border-slate-200 focus:outline-blue-600"
+              >
+                <option value="admin">Admin (Full Control)</option>
+                <option value="sales_manager">Sales Manager (CRM & Invoicing)</option>
+                <option value="sales_rep">Sales Representative (Deals & Contacts)</option>
+                <option value="marketer">Marketer (Campaigns & Forms)</option>
+                <option value="accountant">Accountant (Invoices & Billing)</option>
+                <option value="support_agent">Support Agent (Inbox & Appointments)</option>
+              </select>
               <div className="flex justify-end gap-2 pt-3">
                 <button
                   type="button"
@@ -216,7 +266,7 @@ export const TeamManagementView: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 text-xs font-semibold bg-blue-600 text-white rounded-md hover:bg-blue-700 shadow-2xs transition-colors"
+                  className="px-4 py-1.5 text-xs font-semibold bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors shadow-2xs"
                 >
                   Send Invitation
                 </button>

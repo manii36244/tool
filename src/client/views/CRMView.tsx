@@ -103,7 +103,40 @@ export const CRMView: React.FC = () => {
   const handleDeleteLead = async (leadId: string) => {
     try {
       await api.deleteLead(leadId);
-      showToast('Lead Deleted', 'Lead removed from pipeline');
+      showToast('Lead Deleted', 'Lead removed from CRM');
+      await loadCRMData();
+      await refreshData();
+    } catch (err: any) {
+      showToast('Error', err.message, 'error');
+    }
+  };
+
+  const handleDeleteDeal = async (dealId: string) => {
+    try {
+      await api.deleteDeal(dealId);
+      showToast('Deal Removed', 'Deal deleted from pipeline');
+      await loadCRMData();
+      await refreshData();
+    } catch (err: any) {
+      showToast('Error', err.message, 'error');
+    }
+  };
+
+  const handleDeleteContact = async (contactId: string) => {
+    try {
+      await api.deleteContact(contactId);
+      showToast('Contact Removed', 'Customer record deleted');
+      await loadCRMData();
+      await refreshData();
+    } catch (err: any) {
+      showToast('Error', err.message, 'error');
+    }
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    try {
+      await api.deleteTask(taskId);
+      showToast('Task Deleted', 'Task removed from agenda');
       await loadCRMData();
       await refreshData();
     } catch (err: any) {
@@ -502,7 +535,7 @@ export const CRMView: React.FC = () => {
                             draggable
                             onDragStart={(e) => handleDragStart(e, deal.id)}
                             onDragEnd={handleDragEnd}
-                            className={`group p-3 rounded-lg border transition-all duration-150 cursor-grab active:cursor-grabbing select-none ${
+                            className={`group p-3 rounded-lg border transition-all duration-150 cursor-grab active:cursor-grabbing select-none relative ${
                               isBeingDragged 
                                 ? 'opacity-40 border-blue-400 bg-blue-50 ring-2 ring-blue-400 shadow-lg scale-95' 
                                 : 'bg-slate-50 border-slate-200 shadow-2xs hover:bg-white hover:border-blue-300 hover:shadow-sm'
@@ -512,7 +545,20 @@ export const CRMView: React.FC = () => {
                               <h5 className="text-xs font-bold text-slate-800 leading-snug group-hover:text-blue-600 transition-colors">
                                 {deal.title}
                               </h5>
-                              <GripVertical className="w-3.5 h-3.5 text-slate-400 shrink-0 group-hover:text-slate-600" />
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteDeal(deal.id);
+                                  }}
+                                  title="Delete Deal"
+                                  className="p-1 text-slate-300 hover:text-red-600 rounded transition-colors opacity-0 group-hover:opacity-100"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                                <GripVertical className="w-3.5 h-3.5 text-slate-400 shrink-0 group-hover:text-slate-600" />
+                              </div>
                             </div>
 
                             <div className="flex items-center justify-between text-xs my-2">
@@ -563,40 +609,58 @@ export const CRMView: React.FC = () => {
                   <th className="py-3 px-4">Total Spent</th>
                   <th className="py-3 px-4">Type</th>
                   <th className="py-3 px-4">Tags</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {contacts.map(c => (
-                  <tr key={c.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-3 px-4 font-bold text-slate-800">
-                      {c.first_name} {c.last_name}
-                    </td>
-                    <td className="py-3 px-4 font-medium text-slate-700">
-                      {c.company_name || '—'}
-                    </td>
-                    <td className="py-3 px-4 text-slate-600">
-                      <div>{c.email}</div>
-                      <div className="text-[11px] text-slate-400">{c.phone || '—'}</div>
-                    </td>
-                    <td className="py-3 px-4 font-bold text-emerald-700">
-                      ${(c.total_spent || 0).toLocaleString()}
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-700 capitalize">
-                        {c.type}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex gap-1 flex-wrap">
-                        {c.tags?.map((t, i) => (
-                          <span key={i} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px] font-semibold">
-                            {t}
-                          </span>
-                        ))}
-                      </div>
+                {contacts.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-slate-400">
+                      No customer contacts yet. Add your first customer above.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  contacts.map(c => (
+                    <tr key={c.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="py-3 px-4 font-bold text-slate-800">
+                        {c.first_name} {c.last_name}
+                      </td>
+                      <td className="py-3 px-4 font-medium text-slate-700">
+                        {c.company_name || '—'}
+                      </td>
+                      <td className="py-3 px-4 text-slate-600">
+                        <div>{c.email}</div>
+                        <div className="text-[11px] text-slate-400">{c.phone || '—'}</div>
+                      </td>
+                      <td className="py-3 px-4 font-bold text-emerald-700">
+                        ${(c.total_spent || 0).toLocaleString()}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-700 capitalize">
+                          {c.type}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex gap-1 flex-wrap">
+                          {c.tags?.map((t, i) => (
+                            <span key={i} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px] font-semibold">
+                              {t}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <button
+                          onClick={() => handleDeleteContact(c.id)}
+                          title="Delete Customer"
+                          className="p-1 text-slate-400 hover:text-red-600 rounded transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -606,40 +670,56 @@ export const CRMView: React.FC = () => {
       {/* TAB 4: TASKS */}
       {activeTab === 'tasks' && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-5 space-y-4">
-          <h3 className="text-sm font-bold text-slate-900">CRM Tasks & Follow-up Agenda</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-slate-900">CRM Tasks & Follow-up Agenda</h3>
+            <span className="text-xs text-slate-500">{tasks.length} Total Tasks</span>
+          </div>
           <div className="space-y-2">
-            {tasks.map(task => (
-              <div key={task.id} className="p-3 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={task.status === 'completed'}
-                    onChange={async () => {
-                      await api.updateTask(task.id, { status: task.status === 'completed' ? 'todo' : 'completed' });
-                      loadCRMData();
-                    }}
-                    className="rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
-                  />
-                  <div>
-                    <p className={`text-xs font-semibold ${task.status === 'completed' ? 'line-through text-slate-400' : 'text-slate-800'}`}>
-                      {task.title}
-                    </p>
-                    <p className="text-[11px] text-slate-500">{task.description}</p>
+            {tasks.length === 0 ? (
+              <div className="py-8 text-center text-slate-400 text-xs">
+                No active tasks. Use quick actions to create a follow-up.
+              </div>
+            ) : (
+              tasks.map(task => (
+                <div key={task.id} className="p-3 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={task.status === 'completed'}
+                      onChange={async () => {
+                        await api.updateTask(task.id, { status: task.status === 'completed' ? 'todo' : 'completed' });
+                        loadCRMData();
+                      }}
+                      className="rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <div>
+                      <p className={`text-xs font-semibold ${task.status === 'completed' ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                        {task.title}
+                      </p>
+                      <p className="text-[11px] text-slate-500">{task.description}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md uppercase ${
+                      task.priority === 'urgent' ? 'bg-red-50 text-red-700 border border-red-200' :
+                      task.priority === 'high' ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-slate-100 text-slate-700'
+                    }`}>
+                      {task.priority}
+                    </span>
+                    <span className="text-[11px] text-slate-500">
+                      {task.due_date ? new Date(task.due_date).toLocaleDateString([], { month: 'short', day: 'numeric' }) : 'No date'}
+                    </span>
+                    <button
+                      onClick={() => handleDeleteTask(task.id)}
+                      title="Delete Task"
+                      className="p-1 text-slate-400 hover:text-red-600 rounded transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md uppercase ${
-                    task.priority === 'urgent' ? 'bg-red-50 text-red-700 border border-red-200' :
-                    task.priority === 'high' ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-slate-100 text-slate-700'
-                  }`}>
-                    {task.priority}
-                  </span>
-                  <span className="text-[11px] text-slate-500">
-                    {task.due_date ? new Date(task.due_date).toLocaleDateString([], { month: 'short', day: 'numeric' }) : 'No date'}
-                  </span>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       )}

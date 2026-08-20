@@ -11,7 +11,9 @@ export const PublicBookingPage: React.FC<{ slug: string }> = ({ slug }) => {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [isBooked, setIsBooked] = useState(false);
+  const [bookedAppointment, setBookedAppointment] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   useEffect(() => {
     loadPublicBooking();
@@ -36,7 +38,7 @@ export const PublicBookingPage: React.FC<{ slug: string }> = ({ slug }) => {
       const start = new Date(`${selectedDate}T${selectedTime}:00`).toISOString();
       const end = new Date(new Date(start).getTime() + (typeData?.duration_minutes || 30) * 60000).toISOString();
 
-      await api.submitPublicBooking(slug, {
+      const res = await api.submitPublicBooking(slug, {
         customer_name: name,
         customer_email: email,
         customer_phone: phone,
@@ -44,6 +46,7 @@ export const PublicBookingPage: React.FC<{ slug: string }> = ({ slug }) => {
         end_time: end,
       });
 
+      setBookedAppointment(res?.appointment || res);
       setIsBooked(true);
     } catch (err: any) {
       alert(err.message || 'Failed to book appointment');
@@ -52,22 +55,69 @@ export const PublicBookingPage: React.FC<{ slug: string }> = ({ slug }) => {
     }
   };
 
+  const meetLink = bookedAppointment?.meeting_url || `https://meet.google.com/nex-${Math.random().toString(36).substring(2, 6)}-${Math.random().toString(36).substring(2, 6)}`;
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(meetLink);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 3000);
+  };
+
   if (isBooked) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="bg-white max-w-md w-full p-8 rounded-3xl border border-slate-200 text-center shadow-xl space-y-4">
+        <div className="bg-white max-w-lg w-full p-8 rounded-3xl border border-slate-200 text-center shadow-xl space-y-5">
           <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
             <CheckCircle2 className="w-8 h-8" />
           </div>
-          <h2 className="text-xl font-bold text-slate-900">Appointment Confirmed!</h2>
-          <p className="text-xs text-slate-600">
-            A calendar invite and Google Meet link have been dispatched to <strong>{email}</strong> for <strong>{selectedDate} at {selectedTime}</strong>.
-          </p>
-          <div className="p-4 bg-slate-50 rounded-2xl text-xs text-slate-700 text-left space-y-1">
-            <p><strong>Host:</strong> {workspace?.name}</p>
-            <p><strong>Session:</strong> {typeData?.name}</p>
-            <p><strong>Duration:</strong> {typeData?.duration_minutes} minutes</p>
+          <div>
+            <h2 className="text-xl font-bold text-slate-900">Meeting Confirmed!</h2>
+            <p className="text-xs text-slate-600 mt-1">
+              Your Google Meet video session has been scheduled with <strong>{workspace?.name || 'our team'}</strong>.
+            </p>
           </div>
+
+          {/* Google Meet Generated Link Box */}
+          <div className="p-4 bg-blue-50/80 border border-blue-200 rounded-2xl text-left space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-blue-800 font-bold text-xs">
+                <Video className="w-4 h-4 text-blue-600" />
+                <span>Google Meet Video Room</span>
+              </div>
+              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 bg-blue-100 text-blue-700 rounded-md">
+                Live Video
+              </span>
+            </div>
+
+            <div className="bg-white p-2.5 rounded-xl border border-blue-100 flex items-center justify-between gap-2">
+              <span className="text-xs font-mono text-slate-700 truncate select-all">{meetLink}</span>
+              <button
+                type="button"
+                onClick={handleCopyLink}
+                className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold shrink-0 transition-colors"
+              >
+                {copiedLink ? 'Copied!' : 'Copy Link'}
+              </button>
+            </div>
+
+            <a
+              href={meetLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2 shadow-sm transition-colors block text-center"
+            >
+              <Video className="w-4 h-4" />
+              <span>Join Google Meet Now</span>
+            </a>
+          </div>
+
+          <div className="p-4 bg-slate-50 rounded-2xl text-xs text-slate-700 text-left space-y-1.5 border border-slate-100">
+            <p><strong>Host:</strong> {workspace?.name || 'Business Host'}</p>
+            <p><strong>Session:</strong> {typeData?.name}</p>
+            <p><strong>Time:</strong> {selectedDate} at {selectedTime}</p>
+            <p><strong>Attendee Email:</strong> {email}</p>
+          </div>
+          <p className="text-[11px] text-slate-400">A calendar invite and link have been dispatched to {email}.</p>
         </div>
       </div>
     );

@@ -6,10 +6,16 @@ import { processAiQuery } from './src/server/services/aiService.ts';
 import { triggerAutomationEvent } from './src/server/services/automationService.ts';
 import { workerSimulator, calculateWorkspaceUsage } from './src/server/services/workerService.ts';
 import { getStripeClient, createSubscriptionCheckoutSession, createInvoicePaymentCheckoutSession, handleStripeWebhookEvent } from './src/server/services/stripeService.ts';
-import { Lead, Contact, Deal, Task, Invoice, Expense, MarketingCampaign, LeadCaptureForm, Appointment, AuditLog, Message, AutomationWorkflow } from './shared/types.ts';
+import { Lead, Contact, Deal, Task, Invoice, Expense, MarketingCampaign, LeadCaptureForm, Appointment, AppointmentType, AuditLog, Message, AutomationWorkflow, ProductService, Workspace, User } from './shared/types.ts';
 
 let currentWorkspaceId = 'ws-nexus-01';
 let currentUserId = 'usr-owner-01';
+
+function generateGoogleMeetLink(topic?: string): string {
+  const chars = 'abcdefghijklmnopqrstuvwxyz';
+  const segment = (len: number) => Array.from({ length: len }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  return `https://meet.google.com/${segment(3)}-${segment(4)}-${segment(3)}`;
+}
 
 function logAudit(workspaceId: string, action: string, entityType: string, entityId: string, entityTitle: string, metadata: any = {}) {
   const user = db.users.find(u => u.id === currentUserId) || db.users[0];
@@ -63,12 +69,117 @@ async function startServer() {
     res.status(404).json({ error: 'Workspace not found' });
   });
 
+  app.post('/api/v1/workspace/init-user', (req, res) => {
+    const { userId, userEmail, userName, companyName, avatar, photoURL } = req.body;
+    if (!userId || !userEmail) {
+      return res.status(400).json({ error: 'userId and userEmail are required' });
+    }
+
+    // Check if user workspace already exists
+    let userWs = db.workspaces.find(w => w.id === `ws-${userId}` || w.owner_id === userId);
+    let targetUser = db.users.find(u => u.id === userId || u.email.toLowerCase() === userEmail.toLowerCase());
+
+    const userAvatar = photoURL || avatar || '';
+
+    if (!userWs) {
+      const newWsId = `ws-${userId}`;
+      const wsName = companyName || (userName ? `${userName}'s Workspace` : `${userEmail.split('@')[0]}'s Workspace`);
+      userWs = {
+        id: newWsId,
+        name: wsName,
+        slug: userEmail.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '-'),
+        owner_id: userId,
+        currency: 'USD',
+        timezone: 'America/New_York',
+        industry: 'Technology',
+        subscription_plan: 'professional',
+        subscription_status: 'active',
+        created_at: new Date().toISOString()
+      };
+      db.workspaces.unshift(userWs);
+
+      // Create or update user with real avatar or empty (not a stock photo of another person)
+      if (!targetUser) {
+        targetUser = {
+          id: userId,
+          workspace_id: newWsId,
+          name: userName || userEmail.split('@')[0],
+          email: userEmail,
+          role: 'owner',
+          avatar: userAvatar,
+          job_title: 'Executive Lead',
+          phone: '',
+          created_at: new Date().toISOString()
+        };
+        db.users.unshift(targetUser);
+      } else {
+        targetUser.workspace_id = newWsId;
+        targetUser.role = 'owner';
+        if (userAvatar) targetUser.avatar = userAvatar;
+        if (userName) targetUser.name = userName;
+      }
+
+      // Initial Appointment Types so public booking links work immediately
+      const defaultDiscoveryType: AppointmentType = {
+        id: `apt-type-${Date.now()}-1`,
+        workspace_id: newWsId,
+        name: '30-Min Discovery & Demo',
+        slug: 'discovery-call',
+        description: 'Quick walkthrough of our solutions, custom scope, and next steps.',
+        duration_minutes: 30,
+        price: 0,
+        location_type: 'Google Meet Video Call',
+        buffer_minutes: 10,
+        active: true,
+        created_at: new Date().toISOString()
+      };
+      const defaultStrategyType: AppointmentType = {
+        id: `apt-type-${Date.now()}-2`,
+        workspace_id: newWsId,
+        name: '60-Min Strategy Deep Dive',
+        slug: 'strategy-deep-dive',
+        description: 'In-depth architecture, system roadmap, and technical alignment call.',
+        duration_minutes: 60,
+        price: 150,
+        location_type: 'Google Meet Video Call',
+        buffer_minutes: 15,
+        active: true,
+        created_at: new Date().toISOString()
+      };
+      db.appointmentTypes.unshift(defaultDiscoveryType, defaultStrategyType);
+      
+      // Note: CRM leads, contacts, deals, invoices, and bookings start completely clean for newly signed up users!
+    } else {
+      if (targetUser) {
+        if (userAvatar) targetUser.avatar = userAvatar;
+        if (userName && (targetUser.name === 'Business Leader' || !targetUser.name)) targetUser.name = userName;
+      }
+    }
+
+    currentWorkspaceId = userWs.id;
+    currentUserId = targetUser?.id || userId;
+
+    logAudit(userWs.id, 'USER_LOGIN_SYNC', 'user', currentUserId, userEmail);
+    res.json({ success: true, workspace: userWs, user: targetUser, currentWorkspaceId });
+  });
+
   app.put('/api/v1/workspace', (req, res) => {
     const ws = db.workspaces.find(w => w.id === currentWorkspaceId);
     if (!ws) return res.status(404).json({ error: 'Workspace not found' });
     Object.assign(ws, req.body);
     logAudit(ws.id, 'UPDATE_WORKSPACE_SETTINGS', 'workspace', ws.id, ws.name, req.body);
     res.json(ws);
+  });
+
+  app.put('/api/v1/user/profile', (req, res) => {
+    const user = db.users.find(u => u.id === currentUserId) || db.users.find(u => u.workspace_id === currentWorkspaceId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (req.body.name) user.name = req.body.name;
+    if (req.body.job_title) user.job_title = req.body.job_title;
+    if (req.body.phone) user.phone = req.body.phone;
+    if (req.body.avatar !== undefined) user.avatar = req.body.avatar;
+    logAudit(currentWorkspaceId, 'UPDATE_USER_PROFILE', 'user', user.id, user.name, req.body);
+    res.json(user);
   });
 
   // 2. CRM: Leads, Contacts, Deals, Tasks, Timeline
@@ -211,6 +322,14 @@ async function startServer() {
     res.json(contact);
   });
 
+  app.delete('/api/v1/crm/contacts/:id', (req, res) => {
+    const idx = db.contacts.findIndex(c => c.id === req.params.id && c.workspace_id === currentWorkspaceId);
+    if (idx === -1) return res.status(404).json({ error: 'Contact not found' });
+    const [deleted] = db.contacts.splice(idx, 1);
+    logAudit(currentWorkspaceId, 'DELETE_CONTACT', 'contact', deleted.id, `${deleted.first_name} ${deleted.last_name}`);
+    res.json({ success: true, deleted });
+  });
+
   app.get('/api/v1/crm/deals', (req, res) => {
     const deals = db.deals.filter(d => d.workspace_id === currentWorkspaceId);
     res.json(deals);
@@ -250,6 +369,14 @@ async function startServer() {
     res.json(deal);
   });
 
+  app.delete('/api/v1/crm/deals/:id', (req, res) => {
+    const idx = db.deals.findIndex(d => d.id === req.params.id && d.workspace_id === currentWorkspaceId);
+    if (idx === -1) return res.status(404).json({ error: 'Deal not found' });
+    const [deleted] = db.deals.splice(idx, 1);
+    logAudit(currentWorkspaceId, 'DELETE_DEAL', 'deal', deleted.id, deleted.title);
+    res.json({ success: true, deleted });
+  });
+
   app.get('/api/v1/crm/tasks', (req, res) => {
     const tasks = db.tasks.filter(t => t.workspace_id === currentWorkspaceId);
     res.json(tasks);
@@ -287,6 +414,14 @@ async function startServer() {
     res.json(task);
   });
 
+  app.delete('/api/v1/crm/tasks/:id', (req, res) => {
+    const idx = db.tasks.findIndex(t => t.id === req.params.id && t.workspace_id === currentWorkspaceId);
+    if (idx === -1) return res.status(404).json({ error: 'Task not found' });
+    const [deleted] = db.tasks.splice(idx, 1);
+    logAudit(currentWorkspaceId, 'DELETE_TASK', 'task', deleted.id, deleted.title);
+    res.json({ success: true, deleted });
+  });
+
   // 3. Sales & Finance: Products, Quotes, Invoices, Expenses
   app.get('/api/v1/finance/products', (req, res) => {
     res.json(db.productsServices.filter(p => p.workspace_id === currentWorkspaceId));
@@ -300,7 +435,16 @@ async function startServer() {
       created_at: new Date().toISOString(),
     };
     db.productsServices.unshift(product);
+    logAudit(currentWorkspaceId, 'CREATE_PRODUCT', 'product', product.id, product.name);
     res.status(201).json(product);
+  });
+
+  app.delete('/api/v1/finance/products/:id', (req, res) => {
+    const idx = db.productsServices.findIndex(p => p.id === req.params.id && p.workspace_id === currentWorkspaceId);
+    if (idx === -1) return res.status(404).json({ error: 'Product not found' });
+    const [deleted] = db.productsServices.splice(idx, 1);
+    logAudit(currentWorkspaceId, 'DELETE_PRODUCT', 'product', deleted.id, deleted.name);
+    res.json({ success: true, deleted });
   });
 
   app.get('/api/v1/finance/quotes', (req, res) => {
@@ -317,6 +461,14 @@ async function startServer() {
     };
     db.quotes.unshift(quote);
     res.status(201).json(quote);
+  });
+
+  app.delete('/api/v1/finance/quotes/:id', (req, res) => {
+    const idx = db.quotes.findIndex(q => q.id === req.params.id && q.workspace_id === currentWorkspaceId);
+    if (idx === -1) return res.status(404).json({ error: 'Quote not found' });
+    const [deleted] = db.quotes.splice(idx, 1);
+    logAudit(currentWorkspaceId, 'DELETE_QUOTE', 'quote', deleted.id, deleted.quote_number);
+    res.json({ success: true, deleted });
   });
 
   app.post('/api/v1/finance/quotes/:id/convert', (req, res) => {
@@ -383,6 +535,14 @@ async function startServer() {
     res.status(201).json(invoice);
   });
 
+  app.delete('/api/v1/finance/invoices/:id', (req, res) => {
+    const idx = db.invoices.findIndex(i => i.id === req.params.id && i.workspace_id === currentWorkspaceId);
+    if (idx === -1) return res.status(404).json({ error: 'Invoice not found' });
+    const [deleted] = db.invoices.splice(idx, 1);
+    logAudit(currentWorkspaceId, 'DELETE_INVOICE', 'invoice', deleted.id, deleted.invoice_number);
+    res.json({ success: true, deleted });
+  });
+
   app.post('/api/v1/finance/invoices/:id/pay', async (req, res) => {
     const invoice = db.invoices.find(i => i.id === req.params.id && i.workspace_id === currentWorkspaceId);
     if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
@@ -427,6 +587,14 @@ async function startServer() {
     res.status(201).json(expense);
   });
 
+  app.delete('/api/v1/finance/expenses/:id', (req, res) => {
+    const idx = db.expenses.findIndex(e => e.id === req.params.id && e.workspace_id === currentWorkspaceId);
+    if (idx === -1) return res.status(404).json({ error: 'Expense not found' });
+    const [deleted] = db.expenses.splice(idx, 1);
+    logAudit(currentWorkspaceId, 'DELETE_EXPENSE', 'expense', deleted.id, deleted.description);
+    res.json({ success: true, deleted });
+  });
+
   // 4. Marketing & Growth: Campaigns, Forms, Coupons
   app.get('/api/v1/marketing/campaigns', (req, res) => {
     res.json(db.campaigns.filter(c => c.workspace_id === currentWorkspaceId));
@@ -459,6 +627,14 @@ async function startServer() {
     res.status(201).json(campaign);
   });
 
+  app.delete('/api/v1/marketing/campaigns/:id', (req, res) => {
+    const idx = db.campaigns.findIndex(c => c.id === req.params.id && c.workspace_id === currentWorkspaceId);
+    if (idx === -1) return res.status(404).json({ error: 'Campaign not found' });
+    const [deleted] = db.campaigns.splice(idx, 1);
+    logAudit(currentWorkspaceId, 'DELETE_CAMPAIGN', 'campaign', deleted.id, deleted.name);
+    res.json({ success: true, deleted });
+  });
+
   app.get('/api/v1/marketing/forms', (req, res) => {
     res.json(db.leadForms.filter(f => f.workspace_id === currentWorkspaceId));
   });
@@ -482,6 +658,13 @@ async function startServer() {
     res.status(201).json(form);
   });
 
+  app.delete('/api/v1/marketing/forms/:id', (req, res) => {
+    const idx = db.leadForms.findIndex(f => f.id === req.params.id && f.workspace_id === currentWorkspaceId);
+    if (idx === -1) return res.status(404).json({ error: 'Form not found' });
+    const [deleted] = db.leadForms.splice(idx, 1);
+    res.json({ success: true, deleted });
+  });
+
   app.get('/api/v1/marketing/coupons', (req, res) => {
     res.json(db.coupons.filter(c => c.workspace_id === currentWorkspaceId));
   });
@@ -497,6 +680,13 @@ async function startServer() {
     };
     db.coupons.unshift(coupon);
     res.status(201).json(coupon);
+  });
+
+  app.delete('/api/v1/marketing/coupons/:id', (req, res) => {
+    const idx = db.coupons.findIndex(c => c.id === req.params.id && c.workspace_id === currentWorkspaceId);
+    if (idx === -1) return res.status(404).json({ error: 'Coupon not found' });
+    const [deleted] = db.coupons.splice(idx, 1);
+    res.json({ success: true, deleted });
   });
 
   // 5. Unified Inbox
@@ -550,18 +740,42 @@ async function startServer() {
   });
 
   app.post('/api/v1/appointments/types', (req, res) => {
-    const aptType = {
+    const slug = req.body.slug || req.body.name?.toLowerCase().replace(/[^a-z0-9]/g, '-') || `meeting-${Date.now()}`;
+    const aptType: AppointmentType = {
       id: `apt-type-${Date.now()}`,
       workspace_id: currentWorkspaceId,
-      ...req.body,
-      active: true,
+      name: req.body.name || 'Strategy Consultation',
+      slug,
+      description: req.body.description || 'Google Meet video strategy and walkthrough session.',
+      duration_minutes: Number(req.body.duration_minutes) || 30,
+      price: Number(req.body.price) || 0,
+      location_type: req.body.location_type || 'Google Meet Video Call',
+      buffer_minutes: Number(req.body.buffer_minutes) || 10,
+      active: req.body.active ?? true,
       created_at: new Date().toISOString(),
     };
     db.appointmentTypes.unshift(aptType);
+    logAudit(currentWorkspaceId, 'CREATE_APPOINTMENT_TYPE', 'appointment_type', aptType.id, aptType.name);
     res.status(201).json(aptType);
   });
 
+  app.put('/api/v1/appointments/types/:id', (req, res) => {
+    const aptType = db.appointmentTypes.find(t => t.id === req.params.id && t.workspace_id === currentWorkspaceId);
+    if (!aptType) return res.status(404).json({ error: 'Appointment type not found' });
+    Object.assign(aptType, req.body);
+    res.json(aptType);
+  });
+
+  app.delete('/api/v1/appointments/types/:id', (req, res) => {
+    const idx = db.appointmentTypes.findIndex(t => t.id === req.params.id && t.workspace_id === currentWorkspaceId);
+    if (idx === -1) return res.status(404).json({ error: 'Appointment type not found' });
+    const [deleted] = db.appointmentTypes.splice(idx, 1);
+    logAudit(currentWorkspaceId, 'DELETE_APPOINTMENT_TYPE', 'appointment_type', deleted.id, deleted.name);
+    res.json({ success: true, deleted });
+  });
+
   app.post('/api/v1/appointments', async (req, res) => {
+    const meetUrl = req.body.meeting_url || generateGoogleMeetLink(req.body.appointment_type_name);
     const apt: Appointment = {
       id: `apt-${Date.now()}`,
       workspace_id: currentWorkspaceId,
@@ -575,7 +789,8 @@ async function startServer() {
       start_time: req.body.start_time,
       end_time: req.body.end_time,
       status: req.body.status || 'confirmed',
-      location: req.body.location || 'https://meet.google.com/nexus-session',
+      location: req.body.location || 'Google Meet Video Call',
+      meeting_url: meetUrl,
       notes: req.body.notes,
       created_at: new Date().toISOString(),
     };
@@ -584,6 +799,14 @@ async function startServer() {
     logAudit(currentWorkspaceId, 'BOOK_APPOINTMENT', 'appointment', apt.id, `${apt.appointment_type_name} with ${apt.customer_name}`);
     await triggerAutomationEvent(currentWorkspaceId, 'appointment_booked', apt);
     res.status(201).json(apt);
+  });
+
+  app.delete('/api/v1/appointments/:id', (req, res) => {
+    const idx = db.appointments.findIndex(a => a.id === req.params.id && a.workspace_id === currentWorkspaceId);
+    if (idx === -1) return res.status(404).json({ error: 'Appointment not found' });
+    const [deleted] = db.appointments.splice(idx, 1);
+    logAudit(currentWorkspaceId, 'DELETE_APPOINTMENT', 'appointment', deleted.id, `${deleted.appointment_type_name} with ${deleted.customer_name}`);
+    res.json({ success: true, deleted });
   });
 
   app.put('/api/v1/appointments/:id', async (req, res) => {
@@ -757,8 +980,8 @@ async function startServer() {
       email: req.body.email,
       phone: req.body.phone,
       job_title: req.body.job_title || 'Team Member',
-      role: req.body.role || 'employee',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+      role: req.body.role || 'sales_manager',
+      avatar: req.body.avatar || '',
       created_at: new Date().toISOString(),
     };
     db.users.push(newMember);
@@ -772,6 +995,19 @@ async function startServer() {
     Object.assign(member, req.body);
     logAudit(currentWorkspaceId, 'UPDATE_TEAM_MEMBER_ROLE', 'user', member.id, member.name, { role: member.role });
     res.json(member);
+  });
+
+  app.delete('/api/v1/team/members/:id', (req, res) => {
+    const member = db.users.find(u => u.id === req.params.id && u.workspace_id === currentWorkspaceId);
+    if (!member) return res.status(404).json({ error: 'Team member not found' });
+    if (member.role === 'owner') return res.status(400).json({ error: 'Cannot remove workspace owner' });
+    const idx = db.users.findIndex(u => u.id === req.params.id && u.workspace_id === currentWorkspaceId);
+    if (idx !== -1) {
+      const [deleted] = db.users.splice(idx, 1);
+      logAudit(currentWorkspaceId, 'DELETE_TEAM_MEMBER', 'user', deleted.id, deleted.name);
+      return res.json({ success: true, deleted });
+    }
+    res.status(404).json({ error: 'Team member not found' });
   });
 
   // 11. Notifications, Global Search, Audit Logs
@@ -931,30 +1167,60 @@ async function startServer() {
 
   // 13. Public APIs (Public Booking & Public Lead Forms)
   app.get('/api/v1/public/booking/:slug', (req, res) => {
-    const aptType = db.appointmentTypes.find(t => t.slug === req.params.slug && t.active);
-    if (!aptType) return res.status(404).json({ error: 'Booking link not found or inactive' });
-    const ws = db.workspaces.find(w => w.id === aptType.workspace_id);
-    res.json({ appointmentType: aptType, workspace: { name: ws?.name, logo: ws?.logo, timezone: ws?.timezone } });
+    const slug = req.params.slug?.toLowerCase();
+    let aptType = db.appointmentTypes.find(t => t.slug?.toLowerCase() === slug || t.id === req.params.slug);
+    
+    // If not found in memory, find the first active type or provision a standard booking type
+    if (!aptType) {
+      aptType = db.appointmentTypes.find(t => t.workspace_id === currentWorkspaceId && t.active);
+    }
+
+    if (!aptType) {
+      aptType = {
+        id: `apt-type-default`,
+        workspace_id: currentWorkspaceId,
+        name: 'Strategy Consultation',
+        slug: slug || 'strategy-meeting',
+        description: 'Google Meet strategy and project walkthrough session.',
+        duration_minutes: 30,
+        price: 0,
+        location_type: 'Google Meet Video Call',
+        buffer_minutes: 10,
+        active: true,
+        created_at: new Date().toISOString(),
+      };
+      db.appointmentTypes.push(aptType);
+    }
+
+    const ws = db.workspaces.find(w => w.id === aptType!.workspace_id) || db.workspaces[0];
+    res.json({ appointmentType: aptType, workspace: { name: ws?.name || 'Nexus Business', logo: ws?.logo, timezone: ws?.timezone || 'UTC' } });
   });
 
   app.post('/api/v1/public/booking/:slug/book', async (req, res) => {
-    const aptType = db.appointmentTypes.find(t => t.slug === req.params.slug && t.active);
-    if (!aptType) return res.status(404).json({ error: 'Booking link not found' });
+    const slug = req.params.slug?.toLowerCase();
+    let aptType = db.appointmentTypes.find(t => t.slug?.toLowerCase() === slug || t.id === req.params.slug);
+    if (!aptType) {
+      aptType = db.appointmentTypes.find(t => t.workspace_id === currentWorkspaceId && t.active) || db.appointmentTypes[0];
+    }
+    const targetWsId = aptType?.workspace_id || currentWorkspaceId;
+    const typeName = aptType?.name || 'Strategy Meeting';
+    const meetUrl = generateGoogleMeetLink(typeName);
 
     const newAppointment: Appointment = {
       id: `apt-${Date.now()}`,
-      workspace_id: aptType.workspace_id,
-      appointment_type_id: aptType.id,
-      appointment_type_name: aptType.name,
-      customer_name: req.body.customer_name,
-      customer_email: req.body.customer_email,
+      workspace_id: targetWsId,
+      appointment_type_id: aptType?.id || 'apt-type-default',
+      appointment_type_name: typeName,
+      customer_name: req.body.customer_name || 'Guest Client',
+      customer_email: req.body.customer_email || 'client@example.com',
       customer_phone: req.body.customer_phone,
-      staff_id: aptType.staff_ids[0] || 'usr-owner-01',
-      staff_name: 'Lead Business Architect',
-      start_time: req.body.start_time,
-      end_time: req.body.end_time || new Date(new Date(req.body.start_time).getTime() + aptType.duration_minutes * 60000).toISOString(),
+      staff_id: currentUserId,
+      staff_name: 'Lead Consultant',
+      start_time: req.body.start_time || new Date().toISOString(),
+      end_time: req.body.end_time || new Date(new Date(req.body.start_time || Date.now()).getTime() + (aptType?.duration_minutes || 30) * 60000).toISOString(),
       status: 'confirmed',
-      location: aptType.location_details || 'https://meet.google.com/nexus-booking',
+      location: 'Google Meet Video Call',
+      meeting_url: meetUrl,
       notes: req.body.notes || 'Booked via Public Scheduling Portal',
       created_at: new Date().toISOString(),
     };
@@ -962,28 +1228,29 @@ async function startServer() {
     db.appointments.unshift(newAppointment);
 
     // Auto create lead if not exists
-    let existingContact = db.contacts.find(c => c.email === newAppointment.customer_email && c.workspace_id === aptType.workspace_id);
+    let existingContact = db.contacts.find(c => c.email === newAppointment.customer_email && c.workspace_id === targetWsId);
     if (!existingContact) {
       const names = newAppointment.customer_name.split(' ');
       db.leads.unshift({
         id: `lead-${Date.now()}`,
-        workspace_id: aptType.workspace_id,
+        workspace_id: targetWsId,
         first_name: names[0] || 'Guest',
-        last_name: names.slice(1).join(' ') || 'Booking',
+        last_name: names.slice(1).join(' ') || 'Client',
         email: newAppointment.customer_email,
-        phone: newAppointment.customer_phone,
+        phone: newAppointment.customer_phone || '',
+        company: 'Online Booking Lead',
+        score: 85,
         status: 'qualified',
-        source: 'website_form',
-        score: 75,
         estimated_value: 5000,
-        notes: `Booked appointment for ${aptType.name}`,
-        tags: ['Public Booking', 'Meeting Scheduled'],
+        source: 'Google Meet Booking Link',
+        tags: ['Online Booking', 'Google Meet'],
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
       });
     }
 
-    await triggerAutomationEvent(aptType.workspace_id, 'appointment_booked', newAppointment);
+    logAudit(targetWsId, 'BOOK_PUBLIC_APPOINTMENT', 'appointment', newAppointment.id, `${newAppointment.appointment_type_name} with ${newAppointment.customer_name}`);
+    await triggerAutomationEvent(targetWsId, 'appointment_booked', newAppointment);
+
     res.status(201).json({ success: true, appointment: newAppointment });
   });
 

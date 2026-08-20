@@ -14,14 +14,16 @@ import {
   RefreshCw,
   Building,
   Globe,
-  Database
+  Database,
+  User as UserIcon,
+  Image as ImageIcon
 } from 'lucide-react';
 import { useApp } from '../context/AppContext.tsx';
 import { api } from '../lib/api.ts';
 
 export const SettingsBillingView: React.FC = () => {
-  const { workspace, showToast, refreshData, firebaseUser } = useApp() as any;
-  const [activeTab, setActiveTab] = useState<'billing' | 'workspace' | 'workers' | 'audit'>('billing');
+  const { workspace, user, showToast, refreshData, firebaseUser } = useApp() as any;
+  const [activeTab, setActiveTab] = useState<'profile' | 'billing' | 'workspace' | 'workers' | 'audit'>('profile');
   const [isLoading, setIsLoading] = useState(false);
 
   const [usage, setUsage] = useState<any>({
@@ -44,6 +46,15 @@ export const SettingsBillingView: React.FC = () => {
   const [stripeStatus, setStripeStatus] = useState<any>({ configured: true, mode: 'live' });
   const [isProcessingStripe, setIsProcessingStripe] = useState<string | null>(null);
 
+  // Profile form
+  const [profileForm, setProfileForm] = useState({
+    name: user?.name || firebaseUser?.displayName || '',
+    email: user?.email || firebaseUser?.email || '',
+    job_title: user?.job_title || 'Executive Lead',
+    phone: user?.phone || '',
+    avatar: user?.avatar || firebaseUser?.photoURL || '',
+  });
+
   // Workspace form
   const [wsForm, setWsForm] = useState({
     name: workspace?.name || 'NexusOS Enterprise',
@@ -52,6 +63,15 @@ export const SettingsBillingView: React.FC = () => {
   });
 
   useEffect(() => {
+    if (user) {
+      setProfileForm({
+        name: user.name || firebaseUser?.displayName || '',
+        email: user.email || firebaseUser?.email || '',
+        job_title: user.job_title || 'Executive Lead',
+        phone: user.phone || '',
+        avatar: user.avatar || firebaseUser?.photoURL || '',
+      });
+    }
     if (workspace) {
       setWsForm({
         name: workspace.name || 'NexusOS Enterprise',
@@ -60,7 +80,7 @@ export const SettingsBillingView: React.FC = () => {
       });
     }
     loadData();
-  }, [workspace]);
+  }, [user, workspace]);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -79,6 +99,17 @@ export const SettingsBillingView: React.FC = () => {
       console.error('Error loading settings data:', err);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await api.updateProfile(profileForm);
+      showToast('Profile Saved', 'Your user profile details have been updated');
+      await refreshData();
+    } catch (err: any) {
+      showToast('Error', err.message, 'error');
     }
   };
 
@@ -130,8 +161,8 @@ export const SettingsBillingView: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-800">Settings, Subscriptions & Architecture</h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">Tenant branding, Stripe billing plans, Redis background workers, and audit compliance</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-800">Settings, Profile & Subscriptions</h1>
+          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">Manage personal identity profile, tenant branding, Stripe billing plans, and audit trails</p>
         </div>
         <button
           onClick={() => loadData()}
@@ -145,6 +176,15 @@ export const SettingsBillingView: React.FC = () => {
 
       {/* Tabs */}
       <div className="flex items-center gap-1 border-b border-slate-200 overflow-x-auto pb-0.5">
+        <button
+          onClick={() => setActiveTab('profile')}
+          className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
+            activeTab === 'profile' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <UserIcon className="w-4 h-4" />
+          <span>Profile & Account</span>
+        </button>
         <button
           onClick={() => setActiveTab('billing')}
           className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
@@ -182,6 +222,95 @@ export const SettingsBillingView: React.FC = () => {
           <span>Security Audit Trail ({auditLogs.length})</span>
         </button>
       </div>
+
+      {/* TAB 0: USER PROFILE */}
+      {activeTab === 'profile' && (
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-xs max-w-xl">
+          <h3 className="text-sm font-bold text-slate-900 mb-1">My Personal Profile & Identity</h3>
+          <p className="text-xs text-slate-500 mb-4">Your avatar and name appear across your team member list, assigned deals, and appointment booking hosts.</p>
+
+          <form onSubmit={handleUpdateProfile} className="space-y-4">
+            <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
+              {profileForm.avatar ? (
+                <img
+                  src={profileForm.avatar}
+                  alt="Avatar Preview"
+                  className="w-16 h-16 rounded-full object-cover ring-2 ring-blue-500"
+                />
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xl ring-2 ring-blue-500">
+                  {((profileForm.name || 'U').split(' ').map((n: string) => n[0]).slice(0, 2).join('')).toUpperCase()}
+                </div>
+              )}
+              <div className="flex-1 space-y-1.5">
+                <label className="text-xs font-semibold text-slate-700 block">Avatar Image URL</label>
+                <input
+                  type="url"
+                  placeholder="https://example.com/avatar.jpg"
+                  value={profileForm.avatar}
+                  onChange={e => setProfileForm({ ...profileForm, avatar: e.target.value })}
+                  className="w-full text-xs p-2 rounded-md border border-slate-200 bg-white focus:outline-blue-600 font-mono"
+                />
+                <p className="text-[10px] text-slate-400">Leave blank to use elegant vector monogram initials.</p>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-600 block mb-1">Full Name</label>
+              <input
+                required
+                type="text"
+                value={profileForm.name}
+                onChange={e => setProfileForm({ ...profileForm, name: e.target.value })}
+                className="w-full text-xs p-2.5 rounded-md border border-slate-200 focus:outline-blue-600"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-600 block mb-1">Email Address</label>
+              <input
+                disabled
+                type="email"
+                value={profileForm.email}
+                className="w-full text-xs p-2.5 rounded-md border border-slate-200 bg-slate-50 text-slate-500 cursor-not-allowed"
+              />
+              <span className="text-[10px] text-slate-400 mt-1 block">Managed via Authentication Provider</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">Job Title</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Founder & CEO"
+                  value={profileForm.job_title}
+                  onChange={e => setProfileForm({ ...profileForm, job_title: e.target.value })}
+                  className="w-full text-xs p-2.5 rounded-md border border-slate-200 focus:outline-blue-600"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-600 block mb-1">Phone Number</label>
+                <input
+                  type="tel"
+                  placeholder="+1 (555) 000-0000"
+                  value={profileForm.phone}
+                  onChange={e => setProfileForm({ ...profileForm, phone: e.target.value })}
+                  className="w-full text-xs p-2.5 rounded-md border border-slate-200 focus:outline-blue-600"
+                />
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="submit"
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs font-semibold shadow-xs transition-colors"
+              >
+                Save Profile Changes
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* TAB 1: STRIPE BILLING & QUOTAS */}
       {activeTab === 'billing' && (

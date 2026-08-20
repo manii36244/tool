@@ -13,6 +13,7 @@ import {
   serverTimestamp
 } from '../lib/firebase.ts';
 import { useApp } from '../context/AppContext.tsx';
+import { api } from '../lib/api.ts';
 import { 
   Lock, 
   Mail, 
@@ -66,10 +67,26 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
           createdAt: serverTimestamp(),
         }, { merge: true });
 
-        showToast('Account Created', 'Welcome to NexusOS! Your live database workspace is ready.');
+        // Initialize isolated backend workspace for this user
+        await api.initUserWorkspace({
+          userId: fbUser.uid,
+          userEmail: fbUser.email || email,
+          userName: name || fbUser.displayName || 'Business Operator',
+          companyName: companyName || 'My Company'
+        });
+
+        showToast('Account Created', 'Welcome to NexusOS! Your private database workspace is ready.');
       } else {
-        await signInWithEmailAndPassword(auth, email, password);
-        showToast('Signed In', 'Welcome back to your workspace.');
+        const cred = await signInWithEmailAndPassword(auth, email, password);
+        const fbUser = cred.user;
+        
+        await api.initUserWorkspace({
+          userId: fbUser.uid,
+          userEmail: fbUser.email || email,
+          userName: fbUser.displayName || 'Business Operator'
+        });
+
+        showToast('Signed In', 'Welcome back to your private workspace.');
       }
       await refreshData();
       onClose();
@@ -104,6 +121,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
           createdAt: serverTimestamp(),
         });
       }
+
+      await api.initUserWorkspace({
+        userId: fbUser.uid,
+        userEmail: fbUser.email || '',
+        userName: fbUser.displayName || 'Google User',
+        companyName: `${fbUser.displayName || 'Enterprise'} Workspace`
+      });
 
       showToast('Google Sign-In Successful', `Connected as ${fbUser.displayName || fbUser.email}`);
       await refreshData();

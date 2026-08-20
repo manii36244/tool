@@ -15,7 +15,9 @@ import {
   Plus, 
   Building2,
   CheckCircle2,
-  ExternalLink
+  ExternalLink,
+  LogOut,
+  X
 } from 'lucide-react';
 import { useApp } from '../context/AppContext.tsx';
 
@@ -36,10 +38,12 @@ export const Sidebar: React.FC = () => {
     setActiveView, 
     switchWorkspace,
     unreadNotificationCount,
-    setIsQuickCreateOpen,
     openAiDrawerWithPrompt,
     firebaseUser,
-    setIsAuthModalOpen
+    setIsAuthModalOpen,
+    isMobileSidebarOpen,
+    setIsMobileSidebarOpen,
+    handleSignOut
   } = useApp();
 
   const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = React.useState(false);
@@ -55,30 +59,45 @@ export const Sidebar: React.FC = () => {
     { id: 'automations', label: 'Automations', icon: Zap },
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
     { id: 'team', label: 'Team & RBAC', icon: ShieldCheck },
-    { id: 'settings', label: 'Settings', icon: Settings },
+    { id: 'settings', label: 'Settings & Limits', icon: Settings },
   ];
 
-  return (
-    <aside className="w-60 bg-white border-r border-slate-200 flex flex-col h-screen shrink-0 select-none">
+  const handleNavClick = (viewId: string) => {
+    setActiveView(viewId);
+    setIsMobileSidebarOpen(false);
+  };
+
+  const sidebarContent = (
+    <div className="flex flex-col h-full bg-white select-none">
       {/* Brand Header & Workspace Switcher */}
       <div className="flex h-16 items-center px-4 border-b border-slate-100 relative justify-between">
         <button
           onClick={() => setIsWorkspaceMenuOpen(!isWorkspaceMenuOpen)}
           className="flex items-center gap-2.5 text-left w-full hover:bg-slate-50 p-1.5 rounded-lg transition-colors"
         >
-          <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shrink-0 shadow-xs">
-            <div className="w-3.5 h-3.5 border-2 border-white rounded-xs"></div>
+          <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shrink-0 shadow-xs font-bold">
+            N
           </div>
           <div className="truncate flex-1">
             <span className="text-sm font-bold tracking-tight text-slate-800 block truncate">
-              {workspace?.name || 'Nexus OS'}
+              {workspace?.name || 'NexusOS'}
             </span>
             <span className="text-[10px] text-slate-500 font-medium capitalize block">
-              {workspace?.subscription_plan || 'Pro'} Plan
+              {workspace?.subscription_plan || 'Professional'} Plan
             </span>
           </div>
           <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
         </button>
+
+        {/* Mobile Close Button */}
+        {isMobileSidebarOpen && (
+          <button
+            onClick={() => setIsMobileSidebarOpen(false)}
+            className="md:hidden p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 ml-1"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
 
         {/* Workspace Dropdown */}
         {isWorkspaceMenuOpen && (
@@ -109,6 +128,7 @@ export const Sidebar: React.FC = () => {
               onClick={() => {
                 setIsWorkspaceMenuOpen(false);
                 setActiveView('settings');
+                setIsMobileSidebarOpen(false);
               }}
               className="w-full px-3 py-1.5 text-left text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1.5 hover:bg-blue-50/50 font-medium"
             >
@@ -127,7 +147,7 @@ export const Sidebar: React.FC = () => {
           return (
             <button
               key={item.id}
-              onClick={() => setActiveView(item.id)}
+              onClick={() => handleNavClick(item.id)}
               className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-sm transition-colors ${
                 isActive
                   ? 'bg-blue-50 text-blue-700 font-semibold shadow-2xs'
@@ -149,7 +169,7 @@ export const Sidebar: React.FC = () => {
       </nav>
 
       {/* Clean Utility AI Assist Pill */}
-      <div className="p-3 mx-3 mb-3 bg-slate-50 border border-slate-200 rounded-lg">
+      <div className="p-3 mx-3 mb-2 bg-slate-50 border border-slate-200 rounded-lg">
         <div className="flex items-center justify-between mb-1">
           <div className="flex items-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5 text-blue-600" />
@@ -158,10 +178,13 @@ export const Sidebar: React.FC = () => {
           <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">Ready</span>
         </div>
         <p className="text-[11px] text-slate-500 mb-2 leading-relaxed">
-          Ask questions or optimize campaigns.
+          Ask questions or optimize pipeline.
         </p>
         <button
-          onClick={() => openAiDrawerWithPrompt('Analyze current pipeline bottlenecks and top 3 revenue opportunities')}
+          onClick={() => {
+            openAiDrawerWithPrompt('Analyze current pipeline bottlenecks and top 3 revenue opportunities');
+            setIsMobileSidebarOpen(false);
+          }}
           className="w-full py-1.5 px-2 text-xs font-semibold text-blue-700 bg-white hover:bg-blue-50 border border-slate-200 rounded-md transition-colors flex items-center justify-center gap-1 shadow-2xs"
         >
           <span>Ask AI Assistant</span>
@@ -171,29 +194,32 @@ export const Sidebar: React.FC = () => {
 
       {/* User Profile Footer */}
       <div className="border-t border-slate-100 p-3">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-1.5">
           <button 
-            onClick={() => setIsAuthModalOpen(true)}
-            className="flex items-center gap-2.5 overflow-hidden text-left hover:bg-slate-50 p-1 rounded-lg transition-colors flex-1"
+            onClick={() => {
+              setIsAuthModalOpen(true);
+              setIsMobileSidebarOpen(false);
+            }}
+            className="flex items-center gap-2 overflow-hidden text-left hover:bg-slate-50 p-1 rounded-lg transition-colors flex-1 min-w-0"
           >
             {firebaseUser?.photoURL ? (
               <img
                 src={firebaseUser.photoURL}
                 alt={firebaseUser.displayName || 'User'}
-                className="h-8 w-8 rounded-full object-cover bg-slate-200 shrink-0"
+                className="h-7 w-7 rounded-full object-cover bg-slate-200 shrink-0"
               />
             ) : user?.avatar ? (
               <img
                 src={user.avatar}
                 alt={user?.name}
-                className="h-8 w-8 rounded-full object-cover bg-slate-200 shrink-0"
+                className="h-7 w-7 rounded-full object-cover bg-slate-200 shrink-0"
               />
             ) : (
-              <div className="h-8 w-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs shrink-0">
+              <div className="h-7 w-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs shrink-0">
                 {(firebaseUser?.displayName || user?.name || 'A')[0].toUpperCase()}
               </div>
             )}
-            <div className="flex flex-col truncate">
+            <div className="flex flex-col truncate min-w-0">
               <span className="text-xs font-bold text-slate-800 truncate">
                 {firebaseUser?.displayName || user?.name || 'Alex Morgan'}
               </span>
@@ -208,15 +234,53 @@ export const Sidebar: React.FC = () => {
               </span>
             </div>
           </button>
+          
           <button 
-            onClick={() => setActiveView('settings')} 
+            onClick={() => {
+              setActiveView('settings');
+              setIsMobileSidebarOpen(false);
+            }} 
             title="Account Settings"
-            className="p-1.5 text-slate-400 hover:text-slate-700 rounded-md hover:bg-slate-50 transition-colors"
+            className="p-1.5 text-slate-400 hover:text-slate-700 rounded-md hover:bg-slate-100 transition-colors shrink-0"
           >
             <Settings className="w-3.5 h-3.5" />
           </button>
+
+          <button 
+            onClick={() => {
+              setIsMobileSidebarOpen(false);
+              handleSignOut();
+            }} 
+            title="Sign Out to Home"
+            className="p-1.5 text-slate-400 hover:text-rose-600 rounded-md hover:bg-rose-50 transition-colors shrink-0"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
-    </aside>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Desktop Sidebar */}
+      <aside className="hidden md:flex flex-col w-60 border-r border-slate-200 h-screen shrink-0 z-20">
+        {sidebarContent}
+      </aside>
+
+      {/* Mobile Drawer Sidebar */}
+      {isMobileSidebarOpen && (
+        <div className="fixed inset-0 z-50 md:hidden flex">
+          <div 
+            className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+            onClick={() => setIsMobileSidebarOpen(false)}
+          />
+          <div className="relative w-72 max-w-[80vw] h-full shadow-2xl z-10 animate-in slide-in-from-left duration-200">
+            {sidebarContent}
+          </div>
+        </div>
+      )}
+    </>
   );
 };
+

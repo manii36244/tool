@@ -17,7 +17,9 @@ import {
   Receipt,
   Layers,
   Eye,
-  RefreshCw
+  RefreshCw,
+  PackagePlus,
+  Inbox
 } from 'lucide-react';
 import { useApp } from '../context/AppContext.tsx';
 import { api } from '../lib/api.ts';
@@ -48,6 +50,17 @@ export const SalesFinanceView: React.FC = () => {
     title: 'Custom Business Software Implementation',
     description: 'Architecture, multi-tenant setup, custom automations',
     total: 18500,
+  });
+
+  const [isNewProductOpen, setIsNewProductOpen] = useState(false);
+  const [newProductData, setNewProductData] = useState({
+    name: '',
+    sku: 'SRV-001',
+    description: '',
+    unit_price: 1500,
+    category: 'service' as 'service' | 'product' | 'subscription',
+    tax_rate: 0,
+    active: true,
   });
 
   const [isNewExpenseOpen, setIsNewExpenseOpen] = useState(false);
@@ -93,6 +106,54 @@ export const SalesFinanceView: React.FC = () => {
     }
   };
 
+  const handleDeleteInvoice = async (invoiceId: string, invoiceNumber: string) => {
+    if (!confirm(`Are you sure you want to delete invoice ${invoiceNumber}?`)) return;
+    try {
+      await api.deleteInvoice(invoiceId);
+      showToast('Invoice Deleted', `Invoice ${invoiceNumber} removed`);
+      await loadFinanceData();
+      await refreshData();
+    } catch (err: any) {
+      showToast('Delete Error', err.message, 'error');
+    }
+  };
+
+  const handleDeleteQuote = async (quoteId: string, quoteNumber: string) => {
+    if (!confirm(`Are you sure you want to delete quotation ${quoteNumber}?`)) return;
+    try {
+      await api.deleteQuote(quoteId);
+      showToast('Quote Deleted', `Quotation ${quoteNumber} removed`);
+      await loadFinanceData();
+      await refreshData();
+    } catch (err: any) {
+      showToast('Delete Error', err.message, 'error');
+    }
+  };
+
+  const handleDeleteProduct = async (productId: string, productName: string) => {
+    if (!confirm(`Are you sure you want to delete ${productName}?`)) return;
+    try {
+      await api.deleteProduct(productId);
+      showToast('Product Deleted', `${productName} removed from catalog`);
+      await loadFinanceData();
+      await refreshData();
+    } catch (err: any) {
+      showToast('Delete Error', err.message, 'error');
+    }
+  };
+
+  const handleDeleteExpense = async (expenseId: string, expenseDesc: string) => {
+    if (!confirm(`Are you sure you want to delete expense "${expenseDesc}"?`)) return;
+    try {
+      await api.deleteExpense(expenseId);
+      showToast('Expense Deleted', `Removed expense`);
+      await loadFinanceData();
+      await refreshData();
+    } catch (err: any) {
+      showToast('Delete Error', err.message, 'error');
+    }
+  };
+
   const handleConvertQuote = async (quoteId: string) => {
     try {
       await api.convertQuote(quoteId);
@@ -101,6 +162,32 @@ export const SalesFinanceView: React.FC = () => {
       await refreshData();
     } catch (err: any) {
       showToast('Conversion Error', err.message, 'error');
+    }
+  };
+
+  const handleCreateProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await api.createProduct({
+        ...newProductData,
+        unit_price: Number(newProductData.unit_price) || 0,
+        tax_rate: Number(newProductData.tax_rate) || 0,
+      });
+      showToast('Product Added', `${newProductData.name} saved to catalog`);
+      setIsNewProductOpen(false);
+      setNewProductData({
+        name: '',
+        sku: `SRV-${Math.floor(100 + Math.random() * 900)}`,
+        description: '',
+        unit_price: 1500,
+        category: 'service',
+        tax_rate: 0,
+        active: true,
+      });
+      await loadFinanceData();
+      await refreshData();
+    } catch (err: any) {
+      showToast('Error', err.message, 'error');
     }
   };
 
@@ -121,10 +208,10 @@ export const SalesFinanceView: React.FC = () => {
     }
   };
 
-  const totalInvoiced = invoices.reduce((sum, i) => sum + (Number(i?.total) || 0), 0);
-  const totalPaid = invoices.reduce((sum, i) => sum + (Number(i?.paid_amount) || (i?.status === 'paid' ? Number(i?.total) || 0 : 0)), 0);
+  const totalInvoiced = (invoices || []).reduce((sum, i) => sum + (Number(i?.total) || 0), 0);
+  const totalPaid = (invoices || []).reduce((sum, i) => sum + (Number(i?.paid_amount) || (i?.status === 'paid' ? Number(i?.total) || 0 : 0)), 0);
   const totalRemaining = Math.max(0, totalInvoiced - totalPaid);
-  const totalExpenses = expenses.reduce((sum, e) => sum + (Number(e?.amount) || 0), 0);
+  const totalExpenses = (expenses || []).reduce((sum, e) => sum + (Number(e?.amount) || 0), 0);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto bg-[#F8FAFC]">
@@ -157,6 +244,15 @@ export const SalesFinanceView: React.FC = () => {
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Create Invoice</span>
+            </button>
+          )}
+          {activeTab === 'products' && (
+            <button
+              onClick={() => setIsNewProductOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition-colors"
+            >
+              <PackagePlus className="w-3.5 h-3.5" />
+              <span>Add Product / Service</span>
             </button>
           )}
           {activeTab === 'expenses' && (
@@ -243,205 +339,303 @@ export const SalesFinanceView: React.FC = () => {
 
       {/* TAB 1: INVOICES */}
       {activeTab === 'invoices' && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase text-[10px] tracking-wider font-bold">
-                <tr>
-                  <th className="py-3 px-4">Invoice #</th>
-                  <th className="py-3 px-4">Customer Details</th>
-                  <th className="py-3 px-4">Total Amount</th>
-                  <th className="py-3 px-4">Paid so Far</th>
-                  <th className="py-3 px-4">Remaining Due</th>
-                  <th className="py-3 px-4">Due Date</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {invoices.map(inv => {
-                  const invTotal = Number(inv.total) || 0;
-                  const invPaid = Number(inv.paid_amount) || (inv.status === 'paid' ? invTotal : 0);
-                  const invRemaining = Math.max(0, invTotal - invPaid);
-                  const isPaid = inv.status === 'paid' || invRemaining <= 0;
+        invoices.length === 0 ? (
+          <div className="bg-white rounded-xl border border-slate-200 p-12 text-center shadow-xs">
+            <CreditCard className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+            <h3 className="text-sm font-bold text-slate-800">No invoices yet</h3>
+            <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1 mb-4">Create your first client invoice with customizable line items and Stripe payment checkout.</p>
+            <button
+              onClick={() => setIsNewInvoiceModalOpen(true)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md text-xs font-semibold hover:bg-blue-700 transition-colors shadow-2xs"
+            >
+              Create New Invoice
+            </button>
+          </div>
+        ) : (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase text-[10px] tracking-wider font-bold">
+                  <tr>
+                    <th className="py-3 px-4">Invoice #</th>
+                    <th className="py-3 px-4">Customer Details</th>
+                    <th className="py-3 px-4">Total Amount</th>
+                    <th className="py-3 px-4">Paid so Far</th>
+                    <th className="py-3 px-4">Remaining Due</th>
+                    <th className="py-3 px-4">Due Date</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {invoices.map(inv => {
+                    const invTotal = Number(inv?.total) || 0;
+                    const invPaid = Number(inv?.paid_amount) || (inv?.status === 'paid' ? invTotal : 0);
+                    const invRemaining = Math.max(0, invTotal - invPaid);
+                    const isPaid = inv?.status === 'paid' || invRemaining <= 0;
 
-                  return (
-                    <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-3 px-4 font-mono font-bold text-blue-600">
-                        {inv.invoice_number}
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className="font-semibold text-slate-800 block">{inv.contact_name || 'Client'}</span>
-                        <span className="text-[11px] text-slate-400">{inv.contact_email || 'No email provided'}</span>
-                      </td>
-                      <td className="py-3 px-4 font-bold text-slate-900">
-                        ${invTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-                      <td className="py-3 px-4 font-semibold text-emerald-600">
-                        ${invPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-                      <td className="py-3 px-4 font-bold text-rose-600">
-                        ${invRemaining.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-                      <td className="py-3 px-4 text-slate-600 whitespace-nowrap">
-                        {new Date(inv.due_date).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase ${
-                          isPaid ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                          inv.status === 'overdue' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
-                          inv.paid_amount && inv.paid_amount > 0 ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                          'bg-blue-50 text-blue-700 border border-blue-200'
-                        }`}>
-                          {isPaid ? 'PAID' : inv.paid_amount && inv.paid_amount > 0 ? 'PARTIAL' : inv.status}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => setSelectedInvoice(inv)}
-                            title="View Proper Invoice Template, Print & Details"
-                            className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-md font-semibold text-[11px] flex items-center gap-1 transition-colors"
-                          >
-                            <Eye className="w-3 h-3 text-blue-600" />
-                            <span>View / Print</span>
-                          </button>
-                          
-                          {!isPaid && (
+                    return (
+                      <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="py-3 px-4 font-mono font-bold text-blue-600">
+                          {inv.invoice_number}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="font-semibold text-slate-800 block">{inv.contact_name || 'Client'}</span>
+                          <span className="text-[11px] text-slate-400">{inv.contact_email || 'No email provided'}</span>
+                        </td>
+                        <td className="py-3 px-4 font-bold text-slate-900">
+                          ${invTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-3 px-4 font-semibold text-emerald-600">
+                          ${invPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-3 px-4 font-bold text-rose-600">
+                          ${invRemaining.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-3 px-4 text-slate-600 whitespace-nowrap">
+                          {inv.due_date ? new Date(inv.due_date).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase ${
+                            isPaid ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                            inv.status === 'overdue' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                            inv.paid_amount && inv.paid_amount > 0 ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                            'bg-blue-50 text-blue-700 border border-blue-200'
+                          }`}>
+                            {isPaid ? 'PAID' : inv.paid_amount && inv.paid_amount > 0 ? 'PARTIAL' : inv.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
                             <button
-                              onClick={async () => {
-                                try {
-                                  const session = await api.createStripeInvoiceCheckout({ invoiceId: inv.id });
-                                  if (session?.url && !session.url.includes('sim_inv')) {
-                                    window.location.href = session.url;
-                                  } else {
+                              onClick={() => setSelectedInvoice(inv)}
+                              title="View Proper Invoice Template, Print & Details"
+                              className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-md font-semibold text-[11px] flex items-center gap-1 transition-colors"
+                            >
+                              <Eye className="w-3 h-3 text-blue-600" />
+                              <span>View / Print</span>
+                            </button>
+                            
+                            {!isPaid && (
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    const session = await api.createStripeInvoiceCheckout({ invoiceId: inv.id });
+                                    if (session?.url && !session.url.includes('sim_inv')) {
+                                      window.location.href = session.url;
+                                    } else {
+                                      handlePayInvoice(inv.id);
+                                    }
+                                  } catch (e) {
                                     handlePayInvoice(inv.id);
                                   }
-                                } catch (e) {
-                                  handlePayInvoice(inv.id);
-                                }
-                              }}
-                              title="Pay via Stripe Checkout or Mark Paid"
-                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md font-semibold text-[11px] flex items-center gap-1 shadow-2xs transition-colors"
+                                }}
+                                title="Pay via Stripe Checkout or Mark Paid"
+                                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md font-semibold text-[11px] flex items-center gap-1 shadow-2xs transition-colors"
+                              >
+                                <DollarSign className="w-3 h-3" />
+                                <span>Mark Paid</span>
+                              </button>
+                            )}
+
+                            <button
+                              onClick={() => handleDeleteInvoice(inv.id, inv.invoice_number)}
+                              title="Delete Invoice"
+                              className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
                             >
-                              <DollarSign className="w-3 h-3" />
-                              <span>Mark Paid</span>
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        )
       )}
 
       {/* TAB 2: QUOTATIONS */}
       {activeTab === 'quotes' && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase text-[10px] tracking-wider font-bold">
-                <tr>
-                  <th className="py-3 px-4">Quote #</th>
-                  <th className="py-3 px-4">Title / Client</th>
-                  <th className="py-3 px-4">Valid Until</th>
-                  <th className="py-3 px-4">Total</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {quotes.map(q => (
-                  <tr key={q.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-3 px-4 font-mono font-bold text-slate-900">{q.quote_number}</td>
-                    <td className="py-3 px-4">
-                      <span className="font-semibold text-slate-800 block">{q.title}</span>
-                      <span className="text-[11px] text-slate-400">{q.contact_name}</span>
-                    </td>
-                    <td className="py-3 px-4 text-slate-600">
-                      {new Date(q.valid_until).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
-                    </td>
-                    <td className="py-3 px-4 font-bold text-slate-900">${q.total.toLocaleString()}</td>
-                    <td className="py-3 px-4">
-                      <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 uppercase">
-                        {q.status}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <button
-                        onClick={() => handleConvertQuote(q.id)}
-                        className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-[11px] font-semibold flex items-center gap-1 ml-auto transition-colors shadow-2xs"
-                      >
-                        <span>Convert to Invoice</span>
-                        <ArrowRight className="w-3 h-3" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        quotes.length === 0 ? (
+          <div className="bg-white rounded-xl border border-slate-200 p-12 text-center shadow-xs">
+            <FileText className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+            <h3 className="text-sm font-bold text-slate-800">No quotes yet</h3>
+            <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1 mb-4">Send itemized commercial proposals and convert them directly into invoices once accepted.</p>
           </div>
-        </div>
+        ) : (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase text-[10px] tracking-wider font-bold">
+                  <tr>
+                    <th className="py-3 px-4">Quote #</th>
+                    <th className="py-3 px-4">Title / Client</th>
+                    <th className="py-3 px-4">Valid Until</th>
+                    <th className="py-3 px-4">Total</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {quotes.map(q => (
+                    <tr key={q.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="py-3 px-4 font-mono font-bold text-slate-900">{q.quote_number}</td>
+                      <td className="py-3 px-4">
+                        <span className="font-semibold text-slate-800 block">{q.title}</span>
+                        <span className="text-[11px] text-slate-400">{q.contact_name}</span>
+                      </td>
+                      <td className="py-3 px-4 text-slate-600">
+                        {q.valid_until ? new Date(q.valid_until).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'}
+                      </td>
+                      <td className="py-3 px-4 font-bold text-slate-900">${(Number(q.total) || 0).toLocaleString()}</td>
+                      <td className="py-3 px-4">
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 uppercase">
+                          {q.status}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {q.status !== 'accepted' && (
+                            <button
+                              onClick={() => handleConvertQuote(q.id)}
+                              className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-[11px] font-semibold flex items-center gap-1 transition-colors shadow-2xs"
+                            >
+                              <span>Convert to Invoice</span>
+                              <ArrowRight className="w-3 h-3" />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDeleteQuote(q.id, q.quote_number)}
+                            title="Delete Quote"
+                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
       )}
 
-      {/* TAB 3: PRODUCTS */}
+      {/* TAB 3: PRODUCTS & SERVICES */}
       {activeTab === 'products' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
-          {products.map(p => (
-            <div key={p.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs space-y-3">
-              <div className="flex items-start justify-between">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">{p.name}</h3>
-                  <span className="text-[10px] text-slate-400 font-mono uppercase">{p.sku}</span>
+        products.length === 0 ? (
+          <div className="bg-white rounded-xl border border-slate-200 p-12 text-center shadow-xs">
+            <Layers className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+            <h3 className="text-sm font-bold text-slate-800">No products or services yet</h3>
+            <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1 mb-4">Add your catalog items, service packages, and retainer tiers for fast invoicing.</p>
+            <button
+              onClick={() => setIsNewProductOpen(true)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md text-xs font-semibold hover:bg-blue-700 transition-colors shadow-2xs inline-flex items-center gap-1.5"
+            >
+              <PackagePlus className="w-3.5 h-3.5" />
+              <span>Add First Product / Service</span>
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
+            {products.map(p => (
+              <div key={p.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs space-y-3 flex flex-col justify-between hover:border-slate-300 transition-colors">
+                <div className="space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900">{p?.name || 'Product / Service'}</h3>
+                      <span className="text-[10px] text-slate-400 font-mono uppercase">{p?.sku || 'SKU-001'}</span>
+                    </div>
+                    <span className="text-sm font-bold text-blue-600 whitespace-nowrap">
+                      ${(Number(p?.unit_price) || 0).toLocaleString()}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 leading-relaxed line-clamp-3">{p?.description || 'No description provided.'}</p>
                 </div>
-                <span className="text-sm font-bold text-blue-600">${p.unit_price.toLocaleString()}</span>
+                
+                <div className="text-[11px] text-slate-400 flex items-center justify-between pt-3 border-t border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <span className="capitalize px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-medium text-[10px]">
+                      {p?.category || 'service'}
+                    </span>
+                    <span>Tax: {p?.tax_rate ?? 0}%</span>
+                  </div>
+                  <button
+                    onClick={() => handleDeleteProduct(p.id, p.name)}
+                    title="Delete Product"
+                    className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
-              <p className="text-xs text-slate-500 leading-relaxed">{p.description}</p>
-              <div className="text-[11px] text-slate-400 flex items-center justify-between pt-2 border-t border-slate-100">
-                <span className="capitalize">{p.category}</span>
-                <span>Tax: {p.tax_rate}%</span>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )
       )}
 
       {/* TAB 4: EXPENSES */}
       {activeTab === 'expenses' && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase text-[10px] tracking-wider font-bold">
-                <tr>
-                  <th className="py-3 px-4">Date</th>
-                  <th className="py-3 px-4">Description</th>
-                  <th className="py-3 px-4">Vendor</th>
-                  <th className="py-3 px-4">Category</th>
-                  <th className="py-3 px-4 text-right">Amount</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {expenses.map(e => (
-                  <tr key={e.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-3 px-4 text-slate-500">{new Date(e.date).toLocaleDateString()}</td>
-                    <td className="py-3 px-4 font-bold text-slate-800">{e.description}</td>
-                    <td className="py-3 px-4 text-slate-600">{e.vendor}</td>
-                    <td className="py-3 px-4">
-                      <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-semibold">
-                        {e.category}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-right font-bold text-slate-900">${e.amount.toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        expenses.length === 0 ? (
+          <div className="bg-white rounded-xl border border-slate-200 p-12 text-center shadow-xs">
+            <Receipt className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+            <h3 className="text-sm font-bold text-slate-800">No expenses recorded</h3>
+            <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1 mb-4">Log business receipts, contractor fees, SaaS subscriptions, and calculate net profit.</p>
+            <button
+              onClick={() => setIsNewExpenseOpen(true)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md text-xs font-semibold hover:bg-blue-700 transition-colors shadow-2xs"
+            >
+              Log First Expense
+            </button>
           </div>
-        </div>
+        ) : (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase text-[10px] tracking-wider font-bold">
+                  <tr>
+                    <th className="py-3 px-4">Date</th>
+                    <th className="py-3 px-4">Description</th>
+                    <th className="py-3 px-4">Vendor</th>
+                    <th className="py-3 px-4">Category</th>
+                    <th className="py-3 px-4">Amount</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {expenses.map(e => (
+                    <tr key={e.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="py-3 px-4 text-slate-500">
+                        {e.date ? new Date(e.date).toLocaleDateString() : 'N/A'}
+                      </td>
+                      <td className="py-3 px-4 font-bold text-slate-800">{e.description}</td>
+                      <td className="py-3 px-4 text-slate-600">{e.vendor || '—'}</td>
+                      <td className="py-3 px-4">
+                        <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-semibold">
+                          {e.category || 'Other'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 font-bold text-slate-900">${(Number(e.amount) || 0).toLocaleString()}</td>
+                      <td className="py-3 px-4 text-right">
+                        <button
+                          onClick={() => handleDeleteExpense(e.id, e.description)}
+                          title="Delete Expense"
+                          className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
       )}
 
       {/* Modals */}
@@ -464,6 +658,88 @@ export const SalesFinanceView: React.FC = () => {
             await refreshData();
           }}
         />
+      )}
+
+      {/* Add Product / Service Modal */}
+      {isNewProductOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-2xl border border-slate-200">
+            <h3 className="text-sm font-bold text-slate-900 mb-4">Add Product or Service</h3>
+            <form onSubmit={handleCreateProduct} className="space-y-3">
+              <div>
+                <label className="text-[11px] font-semibold text-slate-700 block mb-1">Item Name *</label>
+                <input
+                  required
+                  placeholder="e.g. Enterprise SEO Strategy Package"
+                  value={newProductData.name}
+                  onChange={e => setNewProductData({ ...newProductData, name: e.target.value })}
+                  className="w-full text-xs p-2 rounded-md border border-slate-200 focus:outline-blue-600"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-700 block mb-1">SKU / Code</label>
+                  <input
+                    placeholder="SRV-201"
+                    value={newProductData.sku}
+                    onChange={e => setNewProductData({ ...newProductData, sku: e.target.value })}
+                    className="w-full text-xs p-2 rounded-md border border-slate-200 focus:outline-blue-600 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-700 block mb-1">Unit Price ($) *</label>
+                  <input
+                    required
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="1500"
+                    value={newProductData.unit_price}
+                    onChange={e => setNewProductData({ ...newProductData, unit_price: Number(e.target.value) })}
+                    className="w-full text-xs p-2 rounded-md border border-slate-200 focus:outline-blue-600"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-[11px] font-semibold text-slate-700 block mb-1">Category</label>
+                <select
+                  value={newProductData.category}
+                  onChange={e => setNewProductData({ ...newProductData, category: e.target.value as any })}
+                  className="w-full text-xs p-2 rounded-md border border-slate-200 focus:outline-blue-600"
+                >
+                  <option value="service">Professional Service</option>
+                  <option value="product">Digital / Physical Product</option>
+                  <option value="subscription">Monthly Subscription / Retainer</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[11px] font-semibold text-slate-700 block mb-1">Description</label>
+                <textarea
+                  rows={3}
+                  placeholder="Details and scope included with this product or service..."
+                  value={newProductData.description}
+                  onChange={e => setNewProductData({ ...newProductData, description: e.target.value })}
+                  className="w-full text-xs p-2 rounded-md border border-slate-200 focus:outline-blue-600"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setIsNewProductOpen(false)}
+                  className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 rounded-md"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 text-xs font-semibold bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors shadow-2xs"
+                >
+                  Save to Catalog
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* Log Expense Modal */}

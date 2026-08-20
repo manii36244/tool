@@ -19,6 +19,7 @@ import { AutomationEngineView } from './client/views/AutomationEngineView.tsx';
 import { AnalyticsGrowthView } from './client/views/AnalyticsGrowthView.tsx';
 import { TeamManagementView } from './client/views/TeamManagementView.tsx';
 import { SettingsBillingView } from './client/views/SettingsBillingView.tsx';
+import { LandingView } from './client/views/LandingView.tsx';
 import { PublicBookingPage } from './client/views/PublicBookingPage.tsx';
 import { PublicLeadFormPage } from './client/views/PublicLeadFormPage.tsx';
 
@@ -68,6 +69,8 @@ const MainAppShell: React.FC = () => {
 
   const renderActiveView = () => {
     switch (activeView) {
+      case 'landing':
+        return <LandingView />;
       case 'dashboard':
         return <DashboardView />;
       case 'crm':
@@ -94,6 +97,16 @@ const MainAppShell: React.FC = () => {
         return <DashboardView />;
     }
   };
+
+  if (activeView === 'landing') {
+    return (
+      <div className="min-h-screen bg-[#090D16] overflow-y-auto font-sans antialiased text-slate-100 selection:bg-blue-600 selection:text-white">
+        <LandingView />
+        <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
+        <ToastContainer />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-[#F8FAFC] overflow-hidden font-sans antialiased text-slate-900 select-none">

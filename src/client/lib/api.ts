@@ -23,7 +23,7 @@ export const api = {
   getWorkspaces: () => fetchApi<any[]>('/workspaces'),
   switchWorkspace: (workspaceId: string) => fetchApi<any>('/workspace/switch', { method: 'POST', body: JSON.stringify({ workspaceId }) }),
   updateWorkspace: (data: any) => fetchApi<any>('/workspace', { method: 'PUT', body: JSON.stringify(data) }),
-  initUserWorkspace: (data: { userId: string; userEmail: string; userName: string; companyName?: string }) => 
+  initUserWorkspace: (data: { userId: string; userEmail: string; userName: string; companyName?: string; avatar?: string }) => 
     fetchApi<any>('/workspace/init-user', { method: 'POST', body: JSON.stringify(data) }),
 
   // CRM
@@ -41,14 +41,17 @@ export const api = {
   getContacts: () => fetchApi<any[]>('/crm/contacts'),
   createContact: (data: any) => fetchApi<any>('/crm/contacts', { method: 'POST', body: JSON.stringify(data) }),
   updateContact: (id: string, data: any) => fetchApi<any>(`/crm/contacts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteContact: (id: string) => fetchApi<any>(`/crm/contacts/${id}`, { method: 'DELETE' }),
 
   getDeals: () => fetchApi<any[]>('/crm/deals'),
   createDeal: (data: any) => fetchApi<any>('/crm/deals', { method: 'POST', body: JSON.stringify(data) }),
   updateDeal: (id: string, data: any) => fetchApi<any>(`/crm/deals/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteDeal: (id: string) => fetchApi<any>(`/crm/deals/${id}`, { method: 'DELETE' }),
 
   getTasks: () => fetchApi<any[]>('/crm/tasks'),
   createTask: (data: any) => fetchApi<any>('/crm/tasks', { method: 'POST', body: JSON.stringify(data) }),
   updateTask: (id: string, data: any) => fetchApi<any>(`/crm/tasks/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteTask: (id: string) => fetchApi<any>(`/crm/tasks/${id}`, { method: 'DELETE' }),
 
   // Sales & Finance
   getProducts: () => fetchApi<any[]>('/finance/products'),
@@ -69,10 +72,13 @@ export const api = {
   // Marketing
   getCampaigns: () => fetchApi<any[]>('/marketing/campaigns'),
   createCampaign: (data: any) => fetchApi<any>('/marketing/campaigns', { method: 'POST', body: JSON.stringify(data) }),
+  deleteCampaign: (id: string) => fetchApi<any>(`/marketing/campaigns/${id}`, { method: 'DELETE' }),
   getForms: () => fetchApi<any[]>('/marketing/forms'),
   createForm: (data: any) => fetchApi<any>('/marketing/forms', { method: 'POST', body: JSON.stringify(data) }),
+  deleteForm: (id: string) => fetchApi<any>(`/marketing/forms/${id}`, { method: 'DELETE' }),
   getCoupons: () => fetchApi<any[]>('/marketing/coupons'),
   createCoupon: (data: any) => fetchApi<any>('/marketing/coupons', { method: 'POST', body: JSON.stringify(data) }),
+  deleteCoupon: (id: string) => fetchApi<any>(`/marketing/coupons/${id}`, { method: 'DELETE' }),
 
   // Unified Inbox
   getConversations: () => fetchApi<any[]>('/inbox/conversations'),
@@ -84,6 +90,8 @@ export const api = {
   getAppointments: () => fetchApi<any[]>('/appointments'),
   getAppointmentTypes: () => fetchApi<any[]>('/appointments/types'),
   createAppointmentType: (data: any) => fetchApi<any>('/appointments/types', { method: 'POST', body: JSON.stringify(data) }),
+  updateAppointmentType: (id: string, data: any) => fetchApi<any>(`/appointments/types/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteAppointmentType: (id: string) => fetchApi<any>(`/appointments/types/${id}`, { method: 'DELETE' }),
   createAppointment: (data: any) => fetchApi<any>('/appointments', { method: 'POST', body: JSON.stringify(data) }),
   updateAppointment: (id: string, data: any) => fetchApi<any>(`/appointments/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteAppointment: (id: string) => fetchApi<any>(`/appointments/${id}`, { method: 'DELETE' }),
@@ -101,10 +109,13 @@ export const api = {
   // Analytics & BI
   getAnalyticsOverview: () => fetchApi<any>('/analytics/overview'),
 
-  // Team
+  // Team & User Profile
   getTeamMembers: () => fetchApi<any[]>('/team/members'),
   inviteTeamMember: (data: any) => fetchApi<any>('/team/invite', { method: 'POST', body: JSON.stringify(data) }),
   updateTeamMember: (id: string, data: any) => fetchApi<any>(`/team/members/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteTeamMember: (id: string) => fetchApi<any>(`/team/members/${id}`, { method: 'DELETE' }),
+  updateUserProfile: (data: any) => fetchApi<any>('/user/profile', { method: 'PUT', body: JSON.stringify(data) }),
+  updateProfile: (data: any) => fetchApi<any>('/user/profile', { method: 'PUT', body: JSON.stringify(data) }),
 
   // Notifications, Search, Audit
   getNotifications: () => fetchApi<any[]>('/notifications'),
